@@ -5,7 +5,7 @@ Simple FastAPI scaffold for the hackathon backend.
 The backend intentionally has:
 
 - one main server file with all endpoints: `app/main.py`
-- one startup file: `main.py`
+- one startup file: `server.py`
 - one module per pipeline task
 - no database
 - no Redis queue
@@ -15,7 +15,7 @@ Jobs are stored in an in-memory dictionary in `app/jobs.py`, so they reset when 
 
 ## Files
 
-- `main.py`: starts the Uvicorn FastAPI server
+- `server.py`: starts the Uvicorn FastAPI server
 - `app/main.py`: FastAPI app, CORS, `/health`, `/api/analyze`, `/api/jobs/{job_id}`, and pipeline orchestration
 - `app/annotator.py`: VEP, AlphaMissense, ClinVar, gnomAD, UniProt task
 - `app/features.py`: structure-derived feature extraction task
@@ -32,7 +32,7 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python main.py
+python server.py
 ```
 
 API docs will be available at `http://127.0.0.1:8000/docs`.

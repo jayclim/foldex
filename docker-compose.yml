@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/app
+    # We map the volume for hot-reloading during development
+    # But we want to ensure the container's environment stays pristine
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # Prevents local node_modules from overwriting the container's
+    environment:
+      # You can configure any Vite environment variables here
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
