@@ -143,13 +143,13 @@ async def _gene_clinvar_candidates(parsed_variant: dict[str, Any]) -> list[dict[
                 "name": title or f"{gene} ClinVar variant",
                 "gene": gene,
                 "source": "ClinVar gene search",
-                "clinical_significance": record.get("clinical_significance", {}).get("description"),
-                "review_status": record.get("clinical_significance", {}).get("review_status"),
+                "clinical_significance": _clinvar_classification(record).get("description"),
+                "review_status": _clinvar_classification(record).get("review_status"),
                 "description": _clinvar_description(
                     {
                         "title": title,
-                        "clinical_significance": record.get("clinical_significance", {}).get("description"),
-                        "review_status": record.get("clinical_significance", {}).get("review_status"),
+                        "clinical_significance": _clinvar_classification(record).get("description"),
+                        "review_status": _clinvar_classification(record).get("review_status"),
                     }
                 ),
                 "mutation": mutation,
@@ -395,6 +395,19 @@ def _clinvar_description(record: dict[str, Any]) -> str:
         f"Review status: {record.get('review_status')}" if record.get("review_status") else None,
     ]
     return ". ".join(piece for piece in pieces if piece)
+
+
+def _clinvar_classification(record: dict[str, Any]) -> dict[str, Any]:
+    for key in (
+        "germline_classification",
+        "clinical_significance",
+        "somatic_clinical_impact",
+        "oncogenicity_classification",
+    ):
+        block = record.get(key)
+        if isinstance(block, dict) and (block.get("description") or block.get("review_status")):
+            return block
+    return {}
 
 
 def _literature_description(record: dict[str, Any]) -> str:

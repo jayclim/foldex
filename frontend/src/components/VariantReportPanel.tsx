@@ -3,6 +3,7 @@ import { Button } from './Button'
 import { MaterialIcon } from './MaterialIcon'
 import { dataStream, variantMetrics } from '../utils/dashboardData'
 import { ProteinViewer } from './ProteinViewer'
+import { getGnomadAlleleFrequency } from '../utils/gnomad'
 
 function navigate(href: string) {
   window.history.pushState({}, '', href)
@@ -18,8 +19,9 @@ function extractMetrics(result: AnalysisResult) {
   const gnomad = ann?.gnomad
   const mutation = result.variant?.mutation
 
-  const afValue = gnomad?.population_frequency
-    ? `${(Object.values(gnomad.population_frequency as Record<string, number>)[0] * 100).toExponential(2)}%`
+  const gnomadAf = getGnomadAlleleFrequency(gnomad)
+  const afValue = gnomadAf != null
+    ? `${(gnomadAf * 100).toExponential(2)}%`
     : 'Not in gnomAD'
 
   const amScore = alphaMissense

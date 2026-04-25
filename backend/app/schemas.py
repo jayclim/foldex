@@ -28,6 +28,10 @@ class MutationSchema(BaseModel):
     reference_aa: str | None = None
     alternate_aa: str | None = None
     protein_position: int | None = None
+    submitted_reference_aa: str | None = None
+    observed_reference_aa: str | None = None
+    submitted_protein_hgvs: str | None = None
+    normalized_protein_hgvs: str | None = None
 
 
 class VariantRecord(BaseModel):
@@ -71,6 +75,8 @@ class ProteinStructure(BaseModel):
     source: str | None = None
     sequence: str | None = None
     sequence_length: int | None = None
+    full_sequence_length: int | None = None
+    modeled_region: Any | None = None
     mutation: Any | None = None
     pdb: str | None = None
     viewer: StructureViewer | None = None

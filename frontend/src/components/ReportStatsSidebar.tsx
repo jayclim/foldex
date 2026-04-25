@@ -1,6 +1,7 @@
 import type { AnalysisResult } from '../api/analysisApi'
 import { MaterialIcon } from './MaterialIcon'
 import { clinicalSnippets, reportStats } from '../utils/reportsData'
+import { getGnomadAlleleFrequency } from '../utils/gnomad'
 
 type ReportStatsSidebarProps = {
   result?: AnalysisResult | null
@@ -15,8 +16,9 @@ export function ReportStatsSidebar({ result }: ReportStatsSidebarProps) {
 
   const classComp = seqFeat?.class_composition
 
-  const gnomadFreq = gnomad?.population_frequency
-    ? `${(Object.values(gnomad.population_frequency as Record<string, number>)[0]).toExponential(2)} (gnomAD)`
+  const gnomadAf = getGnomadAlleleFrequency(gnomad)
+  const gnomadFreq = gnomadAf != null
+    ? `${gnomadAf.toExponential(2)} (gnomAD)`
     : 'Not observed in gnomAD'
 
   const domains = uniprot?.domains?.slice(0, 2).map((d) => d.description).join(', ') ?? 'Domain info unavailable'

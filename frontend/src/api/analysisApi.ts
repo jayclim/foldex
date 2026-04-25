@@ -124,7 +124,9 @@ export type AnalysisResult = {
     } | null
     gnomad?: {
       status: string
-      population_frequency?: Record<string, unknown> | null
+      population_frequency?: number | Record<string, unknown> | null
+      population_frequency_source?: string | null
+      population_frequencies?: Record<string, unknown> | null
     } | null
     uniprot?: {
       status: string

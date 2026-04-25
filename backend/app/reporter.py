@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -17,9 +18,9 @@ async def generate_report(
     - Use Claude with strict instructions to only use structured evidence.
     - Return markdown plus structured JSON for frontend rendering.
     """
-    evidence = _structured_evidence(variant, annotations, similar_variants, structures)
+    evidence = _structured_evidence(variant, annotations, similar_variants)
     ai_markdown = await _claude_report(evidence) or await _groq_report(evidence)
-    markdown = ai_markdown or _fallback_markdown(evidence)
+    markdown = ai_markdown or _fallback_markdown(evidence, structures)
 
     return {
         "markdown": markdown,
@@ -30,7 +31,7 @@ async def generate_report(
             "wild_type": evidence["wild_type"],
             "unknown_variant": evidence["unknown_variant"],
             "similar_variants": evidence["similar_variants"],
-            "structures": evidence["structures"],
+            "structures": structures,
             "warnings": evidence["warnings"],
             "disclaimer": (
                 "Research support only. This is not medical advice, diagnosis, or treatment guidance."
@@ -43,7 +44,6 @@ def _structured_evidence(
     variant: dict[str, Any],
     annotations: dict[str, Any],
     similar_variants: list[dict[str, Any]],
-    structures: dict[str, Any],
 ) -> dict[str, Any]:
     parsed_variant = annotations.get("variant") or variant
     features = annotations.get("features") or {}
@@ -85,13 +85,12 @@ def _structured_evidence(
             }
             for item in similar_variants
         ],
-        "structures": structures,
         "warnings": warnings,
     }
 
 
 async def _claude_report(evidence: dict[str, Any]) -> str | None:
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+    api_key = _env_value("ANTHROPIC_API_KEY")
     if not api_key:
         return None
     try:
@@ -123,12 +122,12 @@ async def _claude_report(evidence: dict[str, Any]) -> str | None:
 
 
 async def _groq_report(evidence: dict[str, Any]) -> str | None:
-    api_key = os.getenv("GROQ_API_KEY")
+    api_key = _env_value("GROQ_API_KEY")
     if not api_key:
         return None
 
-    url = os.getenv("FOLDEX_GROQ_URL", "https://api.groq.com/openai/v1/chat/completions")
-    model = os.getenv("FOLDEX_GROQ_MODEL", "llama-3.3-70b-versatile")
+    url = _env_value("FOLDEX_GROQ_URL") or "https://api.groq.com/openai/v1/chat/completions"
+    model = _env_value("FOLDEX_GROQ_MODEL") or "llama-3.3-70b-versatile"
     prompt = (
         "Generate a concise variant research report in markdown using only the structured "
         "evidence below. Do not invent symptoms, diagnoses, population frequencies, "
@@ -162,13 +161,31 @@ async def _groq_report(evidence: dict[str, Any]) -> str | None:
         return None
 
 
-def _fallback_markdown(evidence: dict[str, Any]) -> str:
+def _env_value(name: str) -> str | None:
+    value = os.getenv(name)
+    if value:
+        return value
+
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    if not env_path.exists():
+        return None
+
+    for line in env_path.read_text().splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, raw_value = stripped.split("=", 1)
+        if key.strip() == name:
+            return raw_value.strip().strip('"').strip("'")
+    return None
+
+
+def _fallback_markdown(evidence: dict[str, Any], structures: dict[str, Any]) -> str:
     variant = evidence["variant"]
     summary = evidence["classification_summary"]
     unknown = evidence["unknown_variant"]
     wild_type = evidence["wild_type"]
     similar = evidence["similar_variants"]
-    structures = evidence["structures"]
     warnings = evidence["warnings"]
 
     lines = [
