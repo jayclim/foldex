@@ -73,7 +73,7 @@ A user submits a single gene variant either as text (e.g. `BRCA1 c.5096G>A p.Arg
 1. **Parses and normalizes** the variant to HGVS (Human Genome Variation Society) standard form using Claude, validated against bioinformatics tools (VariantValidator, Ensembl VEP).
 2. **Annotates** with pathogenicity scores (AlphaMissense, SIFT, PolyPhen via Ensembl VEP), clinical assertions (ClinVar), population frequency by ancestry (gnomAD), and protein metadata (UniProt).
 3. **Predicts 3D structures** — wild-type from AlphaFold DB, mutant from ESMFold — and renders them in an interactive Mol\* viewer with the mutated residue highlighted.
-4. **Finds the 5–10 most biologically similar known variants**, ranked by gene/domain match, residue distance, amino-acid property change, and pathogenicity-score similarity.
+4. **Finds the 5–10 most biologically similar known variants**, ranked by gene/domain match, residue distance, amino-acid property change, and pathogenicity-score similarity. We specifically scan through the most up to date research on bioRxiv, NCBI, etc for these known variants.
 5. **Generates a final structured report** via Claude, separating established clinical evidence from computational prediction, and explicitly flagging weak or conflicting findings.
 
 ---
