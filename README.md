@@ -78,6 +78,8 @@ A user submits a single gene variant either as text (e.g. `BRCA1 c.5096G>A p.Arg
 6. **Adds a patient-friendly summary** beneath the full report — a short, plain-language explanation of what the variant is, what is known versus uncertain, and what the patient should discuss with their clinician. It carries the same non-diagnostic disclaimer and points back to the cited evidence above.
 
 ---
+<img width="3020" height="1578" alt="image" src="https://github.com/user-attachments/assets/3f55319e-9e0f-4bc5-a20e-e33299e5b573" />
+---
 
 ## Architecture
 
