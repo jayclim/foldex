@@ -5,7 +5,8 @@ from pydantic import BaseModel, Field
 
 
 class AnalyzeRequest(BaseModel):
-    text: str = Field(..., examples=["BRCA1 c.5096G>A p.Arg1699Gln"])
+    gene: str = Field(..., examples=["BRCA1"])
+    mutation: str = Field(..., examples=["c.5096G>A p.Arg1699Gln"])
 
 
 class JobStatus(str, Enum):
