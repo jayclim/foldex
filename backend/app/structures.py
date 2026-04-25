@@ -36,7 +36,7 @@ async def structure(variant: dict[str, Any]) -> dict[str, Any]:
         }
 
     pdb_text = None
-    source = "esmfold_disabled"
+    source = "esmfold"
     if _live_apis_enabled():
         try:
             pdb_text = await _fold_with_esmfold(sequence)
@@ -45,7 +45,8 @@ async def structure(variant: dict[str, Any]) -> dict[str, Any]:
             warnings.append(f"ESMFold request failed: {exc}")
             source = "esmfold_error"
     else:
-        warnings.append("Set FOLDEX_ENABLE_LIVE_APIS=1 to request live ESMFold structures.")
+        source = "esmfold_disabled"
+        warnings.append("Live APIs are disabled by FOLDEX_DISABLE_LIVE_APIS=1.")
 
     return {
         "label": label,
@@ -129,7 +130,7 @@ async def _fold_with_esmfold(sequence: str) -> str:
 
 
 def _live_apis_enabled() -> bool:
-    return os.getenv("FOLDEX_ENABLE_LIVE_APIS", "").lower() in {"1", "true", "yes"}
+    return os.getenv("FOLDEX_DISABLE_LIVE_APIS", "").lower() not in {"1", "true", "yes"}
 
 
 def _viewer_payload(pdb_text: str | None) -> dict[str, Any]:

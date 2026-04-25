@@ -54,18 +54,18 @@ async def run_analysis_job(job_id: str, gene: str, mutation: str) -> None:
     try:
         variant = {"gene": gene, "mutation": mutation}
         annotations = await annotate_variant(variant)
-        analyzed_variant = annotations.get("variant", variant)
-        similar_variants = await find_similar_variants(analyzed_variant, annotations)
-        structures = await structures_for_report(analyzed_variant, similar_variants, annotations)
+        variant_record = annotations.get("variant", variant)
+        similar_variants = await find_similar_variants(variant_record, annotations)
+        structures = await structures_for_report(variant_record, similar_variants, annotations)
         report = await generate_report(
-            variant=analyzed_variant,
+            variant=variant_record,
             annotations=annotations,
             similar_variants=similar_variants,
             structures=structures,
         )
 
         job.result = {
-            "variant": analyzed_variant,
+            "variant": variant_record,
             "annotations": annotations,
             "similar_variants": similar_variants,
             "structures": structures,

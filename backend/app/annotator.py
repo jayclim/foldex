@@ -1,4 +1,3 @@
-import json
 import os
 import re
 from typing import Any
@@ -47,42 +46,41 @@ async def annotate_variant(variant: dict[str, Any]) -> dict[str, Any]:
     """
     gene = str(variant.get("gene") or "").strip().upper()
     mutation_text = str(variant.get("mutation") or "").strip()
-    input_text = " ".join(part for part in [gene, mutation_text] if part)
     warnings = []
-    parsed_variant = await _normalize_frontend_variant(gene, mutation_text)
+    variant_record = _build_variant_record(gene, mutation_text)
 
-    uniprot = await _fetch_uniprot(parsed_variant)
+    uniprot = await _fetch_uniprot(variant_record)
     warnings.extend(uniprot.pop("warnings", []))
 
-    mutation = parsed_variant.get("mutation") or {}
+    mutation = variant_record.get("mutation") or {}
     wild_type_sequence = uniprot.get("sequence") or ""
     mutant_sequence, mutation_warnings = mutate_sequence(wild_type_sequence, mutation)
     warnings.extend(mutation_warnings)
 
-    parsed_variant["wild_type_sequence"] = wild_type_sequence
-    parsed_variant["mutant_sequence"] = mutant_sequence
-    parsed_variant["sequence"] = mutant_sequence or wild_type_sequence
+    variant_record["wild_type_sequence"] = wild_type_sequence
+    variant_record["mutant_sequence"] = mutant_sequence
+    variant_record["sequence"] = mutant_sequence or wild_type_sequence
 
     unknown_structure = await structure(
         {
-            **parsed_variant,
-            "label": parsed_variant.get("display_name"),
-            "sequence": parsed_variant["sequence"],
+            **variant_record,
+            "label": variant_record.get("display_name"),
+            "sequence": variant_record["sequence"],
             "mutation": mutation,
         }
     )
     features = await variant_features(unknown_structure)
 
-    vep = await _fetch_vep(parsed_variant)
-    clinvar = await _fetch_clinvar(parsed_variant)
-    gnomad = await _fetch_gnomad(parsed_variant, vep)
+    vep = await _fetch_vep(variant_record)
+    clinvar = await _fetch_clinvar(variant_record)
+    gnomad = await _fetch_gnomad(variant_record, vep)
     alpha_missense = _alpha_missense_from_vep(vep)
 
     for block in (vep, clinvar, gnomad):
         warnings.extend(block.get("warnings", []))
 
     return {
-        "variant": parsed_variant,
+        "variant": variant_record,
         "vep": vep,
         "alpha_missense": alpha_missense,
         "clinvar": clinvar,
@@ -96,85 +94,36 @@ async def annotate_variant(variant: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-async def _extract_variant(text: str) -> dict[str, Any]:
-    claude_variant = await _extract_with_claude(text)
-    regex_variant = _extract_with_regex(text)
-    parsed = {**regex_variant, **{k: v for k, v in claude_variant.items() if v}}
-    gene = parsed.get("gene")
-    mutation = parsed.get("mutation") or {}
-    protein_hgvs = mutation.get("protein_hgvs")
-    cdna_hgvs = mutation.get("cdna_hgvs")
-
-    parsed["input_text"] = text
-    parsed["display_name"] = " ".join(part for part in [gene, cdna_hgvs, protein_hgvs] if part) or text
-    parsed["query_terms"] = [term for term in [gene, cdna_hgvs, protein_hgvs] if term]
-    parsed["extraction_source"] = "claude" if claude_variant else "regex"
-    return parsed
-
-
-async def _normalize_frontend_variant(gene: str, mutation_text: str) -> dict[str, Any]:
-    claude_variant = await _extract_with_claude(f"{gene} {mutation_text}")
-    regex_variant = _extract_mutation_with_regex(mutation_text)
-    claude_mutation = claude_variant.get("mutation") or {}
-    mutation = {**regex_variant, **{key: value for key, value in claude_mutation.items() if value}}
+def _build_variant_record(gene: str, mutation_text: str) -> dict[str, Any]:
+    mutation = _mutation_metadata(mutation_text)
     cdna_hgvs = mutation.get("cdna_hgvs")
     protein_hgvs = mutation.get("protein_hgvs")
+    display_name = " ".join(part for part in [gene, mutation_text] if part)
 
     return {
         "gene": gene,
         "mutation_text": mutation_text,
-        "input_text": f"{gene} {mutation_text}".strip(),
-        "display_name": " ".join(part for part in [gene, cdna_hgvs, protein_hgvs] if part)
-        or f"{gene} {mutation_text}".strip(),
+        "input_text": display_name,
+        "display_name": display_name,
         "query_terms": [term for term in [gene, mutation_text, cdna_hgvs, protein_hgvs] if term],
         "mutation": mutation,
-        "extraction_source": "frontend_gene_with_claude_mutation"
-        if claude_mutation
-        else "frontend_gene_with_regex_mutation",
+        "source": "frontend",
     }
 
 
-def _extract_with_regex(text: str) -> dict[str, Any]:
-    gene_match = re.search(r"\b([A-Z][A-Z0-9-]{1,15})\b", text)
-    cdna_match = re.search(r"\bc\.([0-9]+[ACGT]>[ACGT])\b", text, flags=re.IGNORECASE)
-    protein_match = re.search(
-        r"\bp\.([A-Z][a-z]{2})(\d+)([A-Z][a-z]{2}|Ter|\*)\b",
-        text,
-    )
-
-    mutation: dict[str, Any] = {}
-    if cdna_match:
-        mutation["cdna_hgvs"] = f"c.{cdna_match.group(1)}"
-    if protein_match:
-        ref_three, position, alt_three = protein_match.groups()
-        mutation.update(
-            {
-                "protein_hgvs": f"p.{ref_three}{position}{alt_three}",
-                "reference_aa": AA_THREE_TO_ONE.get(ref_three),
-                "alternate_aa": AA_THREE_TO_ONE.get(alt_three),
-                "protein_position": int(position),
-            }
-        )
-
-    return {
-        "gene": gene_match.group(1) if gene_match else None,
-        "mutation": mutation,
-    }
-
-
-def _extract_mutation_with_regex(mutation_text: str) -> dict[str, Any]:
+def _mutation_metadata(mutation_text: str) -> dict[str, Any]:
+    metadata: dict[str, Any] = {"submitted": mutation_text}
     cdna_match = re.search(r"\bc\.([0-9]+[ACGT]>[ACGT])\b", mutation_text, flags=re.IGNORECASE)
     protein_match = re.search(
         r"\bp\.([A-Z][a-z]{2})(\d+)([A-Z][a-z]{2}|Ter|\*)\b",
         mutation_text,
     )
 
-    mutation: dict[str, Any] = {}
     if cdna_match:
-        mutation["cdna_hgvs"] = f"c.{cdna_match.group(1)}"
+        metadata["cdna_hgvs"] = f"c.{cdna_match.group(1)}"
     if protein_match:
         ref_three, position, alt_three = protein_match.groups()
-        mutation.update(
+        metadata.update(
             {
                 "protein_hgvs": f"p.{ref_three}{position}{alt_three}",
                 "reference_aa": AA_THREE_TO_ONE.get(ref_three),
@@ -182,41 +131,11 @@ def _extract_mutation_with_regex(mutation_text: str) -> dict[str, Any]:
                 "protein_position": int(position),
             }
         )
-    return mutation
+    return metadata
 
 
-async def _extract_with_claude(text: str) -> dict[str, Any]:
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        return {}
-    try:
-        import anthropic
-
-        client = anthropic.AsyncAnthropic(api_key=api_key)
-        message = await client.messages.create(
-            model=os.getenv("FOLDEX_CLAUDE_MODEL", "claude-3-5-sonnet-latest"),
-            max_tokens=600,
-            temperature=0,
-            messages=[
-                {
-                    "role": "user",
-                    "content": (
-                        "Extract the gene and variant from this lab-report text. "
-                        "Return only JSON with keys gene and mutation. mutation may contain "
-                        "cdna_hgvs, protein_hgvs, reference_aa, alternate_aa, protein_position. "
-                        f"Text: {text}"
-                    ),
-                }
-            ],
-        )
-        content = "".join(block.text for block in message.content if hasattr(block, "text"))
-        return json.loads(content)
-    except Exception:
-        return {}
-
-
-async def _fetch_uniprot(parsed_variant: dict[str, Any]) -> dict[str, Any]:
-    gene = parsed_variant.get("gene")
+async def _fetch_uniprot(variant_record: dict[str, Any]) -> dict[str, Any]:
+    gene = variant_record.get("gene")
     if not gene:
         return {"status": "missing_gene", "warnings": ["No gene symbol was extracted for UniProt lookup."]}
     if not _live_apis_enabled():
@@ -224,7 +143,7 @@ async def _fetch_uniprot(parsed_variant: dict[str, Any]) -> dict[str, Any]:
             "status": "live_api_disabled",
             "gene": gene,
             "sequence": None,
-            "warnings": ["Set FOLDEX_ENABLE_LIVE_APIS=1 to fetch UniProt wild-type sequence."],
+            "warnings": ["Live APIs are disabled by FOLDEX_DISABLE_LIVE_APIS=1."],
         }
 
     query = f"gene_exact:{gene} AND organism_id:9606 AND reviewed:true"
@@ -258,8 +177,8 @@ async def _fetch_uniprot(parsed_variant: dict[str, Any]) -> dict[str, Any]:
         return {"status": "error", "gene": gene, "sequence": None, "warnings": [f"UniProt failed: {exc}"]}
 
 
-async def _fetch_vep(parsed_variant: dict[str, Any]) -> dict[str, Any]:
-    hgvs = _hgvs_query(parsed_variant)
+async def _fetch_vep(variant_record: dict[str, Any]) -> dict[str, Any]:
+    hgvs = _hgvs_query(variant_record)
     if not hgvs:
         return {"status": "missing_hgvs", "records": [], "warnings": ["No HGVS query was available for VEP."]}
     if not _live_apis_enabled():
@@ -267,7 +186,7 @@ async def _fetch_vep(parsed_variant: dict[str, Any]) -> dict[str, Any]:
             "status": "live_api_disabled",
             "query": hgvs,
             "records": [],
-            "warnings": ["Set FOLDEX_ENABLE_LIVE_APIS=1 to fetch Ensembl VEP and AlphaMissense."],
+            "warnings": ["Live APIs are disabled by FOLDEX_DISABLE_LIVE_APIS=1."],
         }
     url = f"https://rest.ensembl.org/vep/human/hgvs/{hgvs}"
     try:
@@ -277,15 +196,15 @@ async def _fetch_vep(parsed_variant: dict[str, Any]) -> dict[str, Any]:
         return {"status": "error", "query": hgvs, "records": [], "warnings": [f"VEP failed: {exc}"]}
 
 
-async def _fetch_clinvar(parsed_variant: dict[str, Any]) -> dict[str, Any]:
-    terms = parsed_variant.get("query_terms") or []
+async def _fetch_clinvar(variant_record: dict[str, Any]) -> dict[str, Any]:
+    terms = variant_record.get("query_terms") or []
     if not terms:
         return {"status": "missing_terms", "records": [], "warnings": ["No query terms were available for ClinVar."]}
     if not _live_apis_enabled():
         return {
             "status": "live_api_disabled",
             "records": [],
-            "warnings": ["Set FOLDEX_ENABLE_LIVE_APIS=1 to fetch ClinVar records."],
+            "warnings": ["Live APIs are disabled by FOLDEX_DISABLE_LIVE_APIS=1."],
         }
     query = " ".join(terms)
     try:
@@ -310,7 +229,7 @@ async def _fetch_clinvar(parsed_variant: dict[str, Any]) -> dict[str, Any]:
         return {"status": "error", "query": query, "records": [], "warnings": [f"ClinVar failed: {exc}"]}
 
 
-async def _fetch_gnomad(parsed_variant: dict[str, Any], vep: dict[str, Any]) -> dict[str, Any]:
+async def _fetch_gnomad(variant_record: dict[str, Any], vep: dict[str, Any]) -> dict[str, Any]:
     frequencies = _population_frequencies_from_vep(vep)
     if frequencies:
         return {
@@ -387,9 +306,9 @@ async def _get_json(url: str, **kwargs: Any) -> Any:
         return response.json()
 
 
-def _hgvs_query(parsed_variant: dict[str, Any]) -> str | None:
-    gene = parsed_variant.get("gene")
-    mutation = parsed_variant.get("mutation") or {}
+def _hgvs_query(variant_record: dict[str, Any]) -> str | None:
+    gene = variant_record.get("gene")
+    mutation = variant_record.get("mutation") or {}
     for key in ("cdna_hgvs", "protein_hgvs"):
         if gene and mutation.get(key):
             return f"{gene}:{mutation[key]}"
@@ -443,4 +362,4 @@ def _clinvar_record(record: dict[str, Any]) -> dict[str, Any]:
 
 
 def _live_apis_enabled() -> bool:
-    return os.getenv("FOLDEX_ENABLE_LIVE_APIS", "").lower() in {"1", "true", "yes"}
+    return os.getenv("FOLDEX_DISABLE_LIVE_APIS", "").lower() not in {"1", "true", "yes"}

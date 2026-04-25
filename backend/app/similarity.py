@@ -79,11 +79,6 @@ async def find_similar_variants(variant: dict[str, Any], annotations: dict[str, 
         literature_records = await _search_literature(parsed_variant)
         candidates.extend(_literature_candidates(parsed_variant, literature_records))
         candidates.extend(await _gene_clinvar_candidates(parsed_variant))
-    else:
-        candidates.extend(_disabled_live_search_candidate(parsed_variant))
-
-    if not candidates:
-        candidates.extend(_computed_substitution_candidates(parsed_variant, annotations))
 
     scored = [_score_candidate(candidate, parsed_variant, annotations) for candidate in candidates]
     deduped = _dedupe_candidates(scored)
@@ -305,54 +300,6 @@ def _literature_candidates(
     return candidates
 
 
-def _computed_substitution_candidates(
-    parsed_variant: dict[str, Any], annotations: dict[str, Any]
-) -> list[dict[str, Any]]:
-    mutation = parsed_variant.get("mutation") or {}
-    position = mutation.get("protein_position")
-    reference_aa = mutation.get("reference_aa")
-    alternate_aa = mutation.get("alternate_aa")
-    sequence = parsed_variant.get("wild_type_sequence") or ""
-    if not isinstance(position, int) or not reference_aa:
-        return []
-
-    gene = parsed_variant.get("gene")
-    candidates = []
-    for aa in SIMILAR_AA.get(alternate_aa or reference_aa, []) + SIMILAR_AA.get(reference_aa, []):
-        if not aa or aa == alternate_aa:
-            continue
-        mutant_sequence = sequence
-        if sequence and 0 < position <= len(sequence):
-            mutant_sequence = f"{sequence[:position - 1]}{aa}{sequence[position:]}"
-        candidates.append(
-            {
-                "name": f"{gene or 'Gene'} p.{reference_aa}{position}{aa}",
-                "gene": gene,
-                "source": "computed_nearby_substitution",
-                "clinical_significance": "unknown",
-                "review_status": "not reviewed",
-                "description": (
-                    "Fallback computed candidate with a chemically similar amino-acid substitution "
-                    "at the same residue. Used only when database/literature candidates are missing."
-                ),
-                "mutation": {
-                    "reference_aa": reference_aa,
-                    "alternate_aa": aa,
-                    "protein_position": position,
-                    "protein_hgvs": f"p.{reference_aa}{position}{aa}",
-                },
-                "protein_position": position,
-                "alternate_aa": aa,
-                "mutant_sequence": mutant_sequence,
-                "evidence": {
-                    "basis": "same residue and similar amino-acid class",
-                    "input_features": annotations.get("features", {}).get("mutation"),
-                },
-            }
-        )
-    return candidates
-
-
 def _score_candidate(
     candidate: dict[str, Any],
     parsed_variant: dict[str, Any],
@@ -432,27 +379,6 @@ def _dedupe_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]
     return list(deduped.values())
 
 
-def _disabled_live_search_candidate(parsed_variant: dict[str, Any]) -> list[dict[str, Any]]:
-    return [
-        {
-            "name": f"{parsed_variant.get('gene') or 'Gene'} literature search",
-            "gene": parsed_variant.get("gene"),
-            "source": "literature_search_disabled",
-            "clinical_significance": None,
-            "review_status": None,
-            "description": (
-                "Live literature/database candidate discovery is disabled. Set "
-                "FOLDEX_ENABLE_LIVE_APIS=1 to search PubMed, ClinVar gene records, "
-                "bioRxiv, and medRxiv for same-gene known variants."
-            ),
-            "mutation": {},
-            "protein_position": None,
-            "alternate_aa": None,
-            "evidence": {"status": "disabled"},
-        }
-    ]
-
-
 async def _get_json(url: str, **kwargs: Any) -> Any:
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.get(url, **kwargs)
@@ -482,4 +408,4 @@ def _literature_description(record: dict[str, Any]) -> str:
 
 
 def _live_apis_enabled() -> bool:
-    return os.getenv("FOLDEX_ENABLE_LIVE_APIS", "").lower() in {"1", "true", "yes"}
+    return os.getenv("FOLDEX_DISABLE_LIVE_APIS", "").lower() not in {"1", "true", "yes"}

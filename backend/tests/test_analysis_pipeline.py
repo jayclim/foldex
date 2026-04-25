@@ -3,7 +3,8 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
-def test_analysis_pipeline_completes_without_live_apis() -> None:
+def test_analysis_pipeline_completes_with_live_apis_disabled(monkeypatch) -> None:
+    monkeypatch.setenv("FOLDEX_DISABLE_LIVE_APIS", "1")
     client = TestClient(app)
 
     response = client.post(

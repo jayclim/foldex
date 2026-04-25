@@ -2,6 +2,8 @@ import json
 import os
 from typing import Any
 
+import httpx
+
 
 async def generate_report(
     variant: dict[str, Any],
@@ -16,8 +18,8 @@ async def generate_report(
     - Return markdown plus structured JSON for frontend rendering.
     """
     evidence = _structured_evidence(variant, annotations, similar_variants, structures)
-    claude_markdown = await _claude_report(evidence)
-    markdown = claude_markdown or _fallback_markdown(evidence)
+    ai_markdown = await _claude_report(evidence) or await _ollama_report(evidence)
+    markdown = ai_markdown or _fallback_markdown(evidence)
 
     return {
         "markdown": markdown,
@@ -116,6 +118,39 @@ async def _claude_report(evidence: dict[str, Any]) -> str | None:
             ],
         )
         return "".join(block.text for block in message.content if hasattr(block, "text"))
+    except Exception:
+        return None
+
+
+async def _ollama_report(evidence: dict[str, Any]) -> str | None:
+    model = os.getenv("FOLDEX_OLLAMA_MODEL")
+    if not model:
+        return None
+
+    url = os.getenv("FOLDEX_OLLAMA_URL", "http://localhost:11434/api/generate")
+    prompt = (
+        "Generate a concise variant research report in markdown using only the structured "
+        "evidence below. Do not invent symptoms, diagnoses, population frequencies, "
+        "pathogenicity, papers, or structures. If evidence is missing, say it is missing. "
+        "Include sections for classification, wild type, unknown variant features, similar "
+        "variants, likely behavior/expression based only on similar known variants, 3D "
+        "structures, and research-only disclaimer.\n\n"
+        f"{json.dumps(evidence, indent=2)}"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=120) as client:
+            response = await client.post(
+                url,
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {"temperature": 0},
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data.get("response")
     except Exception:
         return None
 
