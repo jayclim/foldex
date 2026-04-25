@@ -10,7 +10,8 @@ import { Button } from "./Button";
 import { MaterialIcon } from "./MaterialIcon";
 import { parseGeneMutationInput } from "../utils/geneMutationParser";
 
-const ANALYZE_ENDPOINT = "http://localhost:8000/api/analyze";
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const ANALYZE_ENDPOINT = `${API_BASE_URL}/api/analyze`;
 
 export function QuickIntake() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -26,10 +27,6 @@ export function QuickIntake() {
     }
   };
 
-  const handleFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-    selectFile(event.target.files?.[0] ?? null);
-  };
-
   const handleTextInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     setTextInput(event.target.value);
 
@@ -41,27 +38,21 @@ export function QuickIntake() {
     }
   };
 
-  const handleDrop = (event: DragEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    selectFile(event.dataTransfer.files[0] ?? null);
-  };
-
-  const parseActiveInput = async () => {
-    if (selectedFile) {
-      return parseGeneMutationInput(selectedFile.name, {
-        fetcher: async () => new Response(selectedFile),
+  const parseIntakeInput = async (input: string | File) => {
+    if (input instanceof File) {
+      return parseGeneMutationInput(input.name, {
+        fetcher: async () => new Response(input),
       });
     }
 
-    return parseGeneMutationInput(textInput);
+    return parseGeneMutationInput(input);
   };
 
-  const handleAnalyze = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const submitInput = async (input: string | File) => {
     setIsAnalyzing(true);
 
     try {
-      const parsedVariant = await parseActiveInput();
+      const parsedVariant = await parseIntakeInput(input);
       const response = await fetch(ANALYZE_ENDPOINT, {
         method: "POST",
         headers: {
@@ -83,6 +74,31 @@ export function QuickIntake() {
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const handleFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    selectFile(file);
+    event.target.value = "";
+
+    if (file) {
+      void submitInput(file);
+    }
+  };
+
+  const handleDrop = (event: DragEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files[0] ?? null;
+    selectFile(file);
+
+    if (file) {
+      void submitInput(file);
+    }
+  };
+
+  const handleAnalyze = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void submitInput(textInput);
   };
 
   return (
@@ -111,7 +127,11 @@ export function QuickIntake() {
           {selectedFile ? selectedFile.name : "Upload VCF / PDF file"}
         </strong>
         <small>
-          {selectedFile ? "Ready to analyze" : "Click to choose or drop file"}
+          {isAnalyzing
+            ? "Analyzing..."
+            : selectedFile
+              ? "Submitted to backend"
+              : "Click to choose or drop file"}
         </small>
       </Button>
       <form className="sequence-entry" onSubmit={handleAnalyze}>
@@ -127,7 +147,7 @@ export function QuickIntake() {
         />
         <Button
           aria-label="Analyze variant"
-          disabled={isAnalyzing}
+          disabled={isAnalyzing || !textInput.trim()}
           type="submit"
         >
           <MaterialIcon name="send" />

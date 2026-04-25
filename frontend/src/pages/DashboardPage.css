@@ -113,23 +113,37 @@
   width: 100%;
   box-sizing: border-box;
   padding: 16px 40px 16px 0;
+  appearance: none;
   border: 0;
   border-bottom: 1px solid rgba(0, 218, 243, 0.35);
   color: var(--on-surface);
   background: rgba(2, 6, 23, 0.5);
+  caret-color: var(--primary-fixed-dim);
   font: 500 14px/1 var(--font-body);
   letter-spacing: 0.05em;
   outline: none;
 }
 
-.sequence-entry input:focus {
+.sequence-entry input:focus,
+.sequence-entry input:not(:placeholder-shown) {
   border-color: var(--primary-fixed-dim);
+  background: rgba(2, 6, 23, 0.5);
+}
+
+.sequence-entry input:-webkit-autofill,
+.sequence-entry input:-webkit-autofill:hover,
+.sequence-entry input:-webkit-autofill:focus {
+  border-bottom-color: var(--primary-fixed-dim);
+  -webkit-text-fill-color: var(--on-surface);
+  box-shadow: 0 0 0 1000px rgb(2, 6, 23) inset;
+  caret-color: var(--primary-fixed-dim);
 }
 
 .sequence-entry button,
 .icon-button {
   display: grid;
   place-items: center;
+  appearance: none;
   border: 0;
   color: var(--primary-fixed-dim);
   background: transparent;
@@ -140,6 +154,13 @@
   position: absolute;
   inset: 50% 0 auto auto;
   transform: translateY(-50%);
+}
+
+.sequence-entry button:hover,
+.sequence-entry button:focus,
+.sequence-entry button:focus-visible,
+.sequence-entry button:disabled {
+  background: transparent;
 }
 
 .analysis-panel h3 {
