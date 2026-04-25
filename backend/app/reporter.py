@@ -133,6 +133,7 @@ async def _groq_report(evidence: dict[str, Any]) -> str | None:
 
     url = _env_value("FOLDEX_GROQ_URL") or "https://api.groq.com/openai/v1/chat/completions"
     model = _env_value("FOLDEX_GROQ_MODEL") or "llama-3.3-70b-versatile"
+    groq_evidence = {key: value for key, value in evidence.items() if key != "structures"}
     prompt = (
         "Generate a concise variant research report in markdown using only the structured "
         "evidence below. Do not invent symptoms, diagnoses, population frequencies, "
@@ -254,17 +255,10 @@ def _overall_interpretation(alpha: dict[str, Any], clinvar_records: list[dict[st
     clinvar_labels = " ".join(
         (record.get("clinical_significance") or "").lower() for record in clinvar_records
     )
-    pathogenic = any(
-        term in clinvar_labels
-        for term in ("pathogenic", "oncogenic", "likely pathogenic", "likely oncogenic")
-    )
-    benign = any(term in clinvar_labels for term in ("benign", "likely benign"))
-    if pathogenic and not benign:
-        return "Known ClinVar evidence includes pathogenic or oncogenic assertions."
-    if benign and not pathogenic:
+    if "pathogenic" in clinvar_labels and "benign" not in clinvar_labels:
+        return "Known ClinVar evidence includes pathogenic assertions."
+    if "benign" in clinvar_labels and "pathogenic" not in clinvar_labels:
         return "Known ClinVar evidence includes benign assertions."
-    if pathogenic and benign:
-        return "Conflicting ClinVar evidence — both pathogenic/oncogenic and benign assertions present."
     predictions = alpha.get("predictions") or []
     if predictions:
         return "AlphaMissense predictions are available and should be reviewed with ClinVar and frequency evidence."
@@ -298,21 +292,11 @@ def _unknown_variant_description(variant: dict[str, Any], features: dict[str, An
 
 
 def _behavior_summary(similar_variants: list[dict[str, Any]]) -> str:
-    # Match any ClinVar-sourced variant regardless of exact source string variant.
-    known = [
-        item for item in similar_variants
-        if "clinvar" in (item.get("source") or "").lower()
-    ]
+    known = [item for item in similar_variants if item.get("source") == "ClinVar"]
     if not known:
         return (
-            "No known similar variants with ClinVar clinical assertions were available, so "
-            "behavior or expression should not be inferred beyond the measured features."
+            "No known similar variants with clinical assertions were available, so behavior or "
+            "expression should not be inferred beyond the measured features."
         )
-    labels = ", ".join(
-        f"{item.get('name')} ({item.get('clinical_significance') or 'significance unknown'})"
-        for item in known[:5]
-    )
-    return (
-        f"Closest known ClinVar variants: {labels}. "
-        "Interpret cautiously alongside the ranked similarity evidence."
-    )
+    labels = ", ".join(item.get("clinical_significance") or "unknown" for item in known[:5])
+    return f"Closest known variant assertions include: {labels}. Interpret cautiously with the ranked evidence."

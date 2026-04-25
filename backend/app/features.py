@@ -52,7 +52,10 @@ THREE_TO_ONE = {
 }
 
 
-async def variant_features(structure_data: dict[str, Any], annotations: dict[str, Any] | None = None) -> dict[str, Any]:
+async def variant_features(
+    structure_data: dict[str, Any],
+    annotations: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Fetch biologically relevant features from a given variant's 3D structure
     which is the input from structures.py
 
@@ -63,22 +66,34 @@ async def variant_features(structure_data: dict[str, Any], annotations: dict[str
     sequence = structure_data.get("sequence") or ""
     pdb_text = structure_data.get("pdb") or ""
     mutation = structure_data.get("mutation") or {}
-    annotations = annotations or {}
 
     sequence_features = _sequence_features(sequence)
     mutation_features = _mutation_features(mutation, sequence)
     structure_features = _structure_features(pdb_text)
-    genomic_features = _genomic_features(annotations)
 
     return {
         "sequence": sequence_features,
         "mutation": mutation_features,
         "structure": structure_features,
-        "genomic": genomic_features,
-        "feature_vector": _feature_vector(
-            sequence_features, mutation_features, structure_features, genomic_features
-        ),
+        "evidence": _evidence_features(annotations or {}),
+        "feature_vector": _feature_vector(sequence_features, mutation_features, structure_features),
         "warnings": _feature_warnings(sequence, pdb_text),
+    }
+
+
+def _evidence_features(annotations: dict[str, Any]) -> dict[str, Any]:
+    alpha_predictions = (annotations.get("alpha_missense") or {}).get("predictions") or []
+    clinvar_records = (annotations.get("clinvar") or {}).get("records") or []
+    gnomad = annotations.get("gnomad") or {}
+    uniprot = annotations.get("uniprot") or {}
+    return {
+        "alpha_missense": alpha_predictions[0] if alpha_predictions else None,
+        "clinvar_primary_significance": (
+            clinvar_records[0].get("clinical_significance") if clinvar_records else None
+        ),
+        "population_frequency": gnomad.get("population_frequency"),
+        "uniprot_accession": uniprot.get("accession"),
+        "uniprot_protein_name": uniprot.get("protein_name"),
     }
 
 
@@ -229,9 +244,8 @@ def _feature_vector(
     sequence_features: dict[str, Any],
     mutation_features: dict[str, Any],
     structure_features: dict[str, Any],
-    genomic_features: dict[str, Any],
 ) -> dict[str, float]:
-    vector = {
+    return {
         "length": float(sequence_features.get("length") or 0),
         "average_hydropathy": float(sequence_features.get("average_hydropathy") or 0),
         "mass_delta_da": float(mutation_features.get("mass_delta_da") or 0),
@@ -239,57 +253,6 @@ def _feature_vector(
         "position_fraction": float(mutation_features.get("position_fraction") or 0),
         "radius_of_gyration_angstrom": float(structure_features.get("radius_of_gyration_angstrom") or 0),
     }
-    
-    # Incorporate genomic findings into the feature vector
-    alpha_score = genomic_features.get("alpha_missense_score")
-    if alpha_score is not None:
-        vector["alpha_missense_score"] = float(alpha_score)
-    
-    gnomad_af = genomic_features.get("gnomad_af")
-    if gnomad_af is not None:
-        vector["gnomad_af"] = float(gnomad_af)
-        
-    return vector
-
-
-def _genomic_features(annotations: dict[str, Any]) -> dict[str, Any]:
-    alpha = annotations.get("alpha_missense") or {}
-    predictions = alpha.get("predictions") or []
-    score = predictions[0].get("score") if predictions else None
-    
-    gnomad = annotations.get("gnomad") or {}
-    af_data = gnomad.get("population_frequency") or {}
-    af = af_data.get("frequencies", {}).get("gnomad_af")
-
-    clinvar = annotations.get("clinvar", {}).get("records") or []
-    pathogenic_count = sum(
-        1 for r in clinvar 
-        if "pathogenic" in (r.get("clinical_significance") or "").lower()
-    )
-
-    return {
-        "alpha_missense_score": score,
-        "gnomad_af": af,
-        "clinvar_pathogenic_count": pathogenic_count,
-        "is_known_clinvar": len(clinvar) > 0
-    }
-
-
-def _biopython_structure_features(pdb_text: str) -> dict[str, Any]:
-    """Placeholder for Biopython-based extraction if available."""
-    try:
-        from io import StringIO
-        from Bio.PDB import PDBParser
-        
-        parser = PDBParser(QUIET=True)
-        handle = StringIO(pdb_text)
-        structure = parser.get_structure("variant", handle)
-        
-        # We could calculate DSSP, accessibility, etc. here
-        # For now, just return a confirmation that Biopython is working
-        return {"biopython_enabled": True, "model_id": structure.id}
-    except Exception:
-        return {"biopython_enabled": False}
 
 
 def _feature_warnings(sequence: str, pdb_text: str) -> list[str]:

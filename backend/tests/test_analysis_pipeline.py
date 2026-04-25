@@ -1,7 +1,12 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app.annotator import _coding_hgvs_from_vep, _preferred_gnomad_frequency, _preferred_vep_frequency
+from app.annotator import (
+    _coding_hgvs_from_vep,
+    _mutation_metadata,
+    _preferred_gnomad_frequency,
+    _preferred_vep_frequency,
+)
 from app.main import app
 
 

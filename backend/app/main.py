@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.annotator import annotate_variant
 from app.jobs import Job, JobStatus, jobs
 from app.reporter import generate_report
-from app.schemas import AnalysisResult, AnalyzeRequest, AnalyzeResponse, JobResponse
+from app.schemas import AnalyzeRequest, AnalyzeResponse, JobResponse
 from app.similarity import find_similar_variants
 from app.structures import structures_for_report
 
@@ -73,15 +73,13 @@ async def run_analysis_job(job_id: str, gene: str, mutation: str) -> None:
             structures=structures,
         )
 
-        job.result = AnalysisResult.model_validate(
-            {
-                "variant": variant_record,
-                "annotations": annotations,
-                "similar_variants": similar_variants,
-                "structures": structures,
-                "report": report,
-            }
-        )
+        job.result = {
+            "variant": variant_record,
+            "annotations": annotations,
+            "similar_variants": similar_variants,
+            "structures": structures,
+            "report": report,
+        }
         job.status = JobStatus.completed
     except Exception as exc:  # noqa: BLE001 - expose errors during hackathon development.
         job.status = JobStatus.failed

@@ -224,6 +224,28 @@ _PROTEIN_RE = re.compile(
 )
 
 
+def _normalize_aa(token: str | None) -> str | None:
+    if not token:
+        return None
+
+    normalized = token.strip()
+    upper = normalized.upper()
+    if upper in _STOP_TOKENS:
+        return "*"
+    if len(normalized) == 1 and upper in _ONE_LETTER_AAS:
+        return upper
+    title = normalized[:1].upper() + normalized[1:].lower()
+    return AA_THREE_TO_ONE.get(title)
+
+
+def _canonical_aa_token(amino_acid: str | None) -> str | None:
+    if not amino_acid:
+        return None
+    if amino_acid == "*":
+        return "Ter"
+    return AA_ONE_TO_THREE.get(amino_acid, amino_acid)
+
+
 def _mutation_metadata(mutation_text: str) -> dict[str, Any]:
     metadata: dict[str, Any] = {"submitted": mutation_text}
     if not mutation_text:
@@ -854,6 +876,24 @@ async def _canonical_transcript_for_gene(gene: str) -> tuple[dict[str, Any] | No
         "translation_id": (transcript.get("Translation") or {}).get("id"),
         "translation_length": (transcript.get("Translation") or {}).get("length"),
     }, []
+
+
+async def _fetch_ensembl_transcript(gene: str) -> str | None:
+    if not gene or not _live_apis_enabled():
+        return None
+    transcript, _warnings = await _canonical_transcript_for_gene(gene)
+    return transcript.get("id") if transcript else None
+
+
+async def _parse_variant_with_ai(text: str) -> dict[str, str]:
+    # Local fallback parser: keep this deterministic so analysis does not depend on
+    # an LLM before the evidence-gathering pipeline has even started.
+    tokens = text.strip().split()
+    if not tokens:
+        return {}
+    gene = tokens[0].upper()
+    mutation = " ".join(tokens[1:])
+    return {"gene": gene, "mutation": mutation}
 
 
 async def _fetch_cds_sequence(transcript_id: str) -> tuple[str | None, str | None]:
