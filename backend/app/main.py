@@ -5,12 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.annotator import annotate_variant
 from app.jobs import Job, JobStatus, jobs
-from app.normalizer import normalize_variant
-from app.parser import parse_variant_input
 from app.reporter import generate_report
 from app.schemas import AnalyzeRequest, AnalyzeResponse, JobResponse
 from app.similarity import find_similar_variants
-from app.structures import prepare_structures
+from app.structures import structures_for_report
 
 app = FastAPI(
     title="Foldex API",
@@ -37,7 +35,7 @@ async def analyze(request: AnalyzeRequest, background_tasks: BackgroundTasks) ->
     job_id = str(uuid4())
     jobs[job_id] = Job(job_id=job_id, status=JobStatus.queued)
 
-    background_tasks.add_task(run_analysis_job, job_id, request.text)
+    background_tasks.add_task(run_analysis_job, job_id, request.gene, request.mutation)
     return AnalyzeResponse(job_id=job_id, status=JobStatus.queued)
 
 
@@ -49,25 +47,25 @@ async def get_job(job_id: str) -> JobResponse:
     return JobResponse(**job.model_dump())
 
 
-async def run_analysis_job(job_id: str, text: str) -> None:
+async def run_analysis_job(job_id: str, gene: str, mutation: str) -> None:
     job = jobs[job_id]
     job.status = JobStatus.running
 
     try:
-        parsed_variant = await parse_variant_input(text)
-        normalized_variant = await normalize_variant(parsed_variant)
-        annotations = await annotate_variant(normalized_variant)
-        similar_variants = await find_similar_variants(normalized_variant, annotations)
-        structures = await prepare_structures(normalized_variant, similar_variants, annotations)
+        variant = {"gene": gene, "mutation": mutation}
+        annotations = await annotate_variant(variant)
+        analyzed_variant = annotations.get("variant", variant)
+        similar_variants = await find_similar_variants(analyzed_variant, annotations)
+        structures = await structures_for_report(analyzed_variant, similar_variants, annotations)
         report = await generate_report(
-            normalized_variant=normalized_variant,
+            variant=analyzed_variant,
             annotations=annotations,
             similar_variants=similar_variants,
             structures=structures,
         )
 
         job.result = {
-            "variant": normalized_variant,
+            "variant": analyzed_variant,
             "annotations": annotations,
             "similar_variants": similar_variants,
             "structures": structures,

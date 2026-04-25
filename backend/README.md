@@ -17,8 +17,6 @@ Jobs are stored in an in-memory dictionary in `app/jobs.py`, so they reset when 
 
 - `main.py`: starts the Uvicorn FastAPI server
 - `app/main.py`: FastAPI app, CORS, `/health`, `/api/analyze`, `/api/jobs/{job_id}`, and pipeline orchestration
-- `app/parser.py`: Claude/PDF/text parsing task
-- `app/normalizer.py`: HGVS validation and transcript/genomic normalization task
 - `app/annotator.py`: VEP, AlphaMissense, ClinVar, gnomAD, UniProt task
 - `app/features.py`: structure-derived feature extraction task
 - `app/similarity.py`: known similar variant search and scoring task
