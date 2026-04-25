@@ -1,7 +1,19 @@
+import type { MouseEvent } from "react";
+
 import { MaterialIcon } from "../components/MaterialIcon";
 import { navItems } from "../utils/dashboardData";
 
-export function SideNav() {
+type SideNavProps = {
+  activePage: string;
+};
+
+export function SideNav({ activePage }: SideNavProps) {
+  const navigate = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
+    event.preventDefault();
+    window.history.pushState({}, "", href);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  };
+
   return (
     <aside className="side-nav">
       <div className="brand">
@@ -12,9 +24,12 @@ export function SideNav() {
       <nav className="primary-nav" aria-label="Primary">
         {navItems.map((item) => (
           <a
-            className={item.active ? "nav-link active" : "nav-link"}
-            href="#"
+            className={
+              item.label === activePage ? "nav-link active" : "nav-link"
+            }
+            href={item.href}
             key={item.label}
+            onClick={(event) => navigate(event, item.href)}
           >
             <MaterialIcon name={item.icon} />
             <span>{item.label}</span>
