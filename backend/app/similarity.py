@@ -138,6 +138,15 @@ async def _gene_clinvar_candidates(parsed_variant: dict[str, Any]) -> list[dict[
         title = record.get("title") or ""
         variant_mentions = _extract_variant_mentions(title)
         mutation = variant_mentions[0] if variant_mentions else {}
+        classification = (
+            record.get("germline_classification")
+            or record.get("clinical_impact_classification")
+            or record.get("oncogenicity_classification")
+            or record.get("clinical_significance")
+            or {}
+        )
+        clinical_significance = classification.get("description")
+        review_status = classification.get("review_status")
         candidates.append(
             {
                 "name": title or f"{gene} ClinVar variant",

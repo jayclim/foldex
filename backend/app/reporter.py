@@ -1,9 +1,12 @@
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 async def generate_report(
@@ -96,9 +99,10 @@ async def _claude_report(evidence: dict[str, Any]) -> str | None:
     try:
         import anthropic
 
+        print(">>> Calling Claude API for report generation...", flush=True)
         client = anthropic.AsyncAnthropic(api_key=api_key)
         message = await client.messages.create(
-            model=os.getenv("FOLDEX_CLAUDE_MODEL", "claude-3-5-sonnet-latest"),
+            model=os.getenv("FOLDEX_CLAUDE_MODEL", "claude-sonnet-4-20250514"),
             max_tokens=1800,
             temperature=0,
             messages=[
@@ -111,13 +115,14 @@ async def _claude_report(evidence: dict[str, Any]) -> str | None:
                         "say it is missing. Include sections for classification, wild type, unknown "
                         "variant features, similar variants, likely behavior/expression based only on "
                         "similar known variants, 3D structures, and research-only disclaimer.\n\n"
-                        f"{json.dumps(evidence, indent=2)}"
+                        f"{json.dumps({k: v for k, v in evidence.items() if k != 'structures'}, indent=2)}"
                     ),
                 }
             ],
         )
         return "".join(block.text for block in message.content if hasattr(block, "text"))
-    except Exception:
+    except Exception as e:
+        print(f">>> Claude API failed: {e}", flush=True)
         return None
 
 
@@ -135,20 +140,17 @@ async def _groq_report(evidence: dict[str, Any]) -> str | None:
         "Include sections for classification, wild type, unknown variant features, similar "
         "variants, likely behavior/expression based only on similar known variants, 3D "
         "structures, and research-only disclaimer.\n\n"
-        f"{json.dumps(evidence, indent=2)}"
+        f"{json.dumps(groq_evidence, indent=2)}"
     )
     try:
         async with httpx.AsyncClient(timeout=120) as client:
             response = await client.post(
                 url,
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
+                headers={"Authorization": f"Bearer {api_key}"},
                 json={
                     "model": model,
-                    "temperature": 0,
                     "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0,
                 },
             )
             response.raise_for_status()
@@ -157,7 +159,8 @@ async def _groq_report(evidence: dict[str, Any]) -> str | None:
             if not choices:
                 return None
             return choices[0].get("message", {}).get("content")
-    except Exception:
+    except Exception as e:
+        print(f">>> Groq API failed: {e}", flush=True)
         return None
 
 
@@ -251,10 +254,17 @@ def _overall_interpretation(alpha: dict[str, Any], clinvar_records: list[dict[st
     clinvar_labels = " ".join(
         (record.get("clinical_significance") or "").lower() for record in clinvar_records
     )
-    if "pathogenic" in clinvar_labels and "benign" not in clinvar_labels:
-        return "Known ClinVar evidence includes pathogenic assertions."
-    if "benign" in clinvar_labels and "pathogenic" not in clinvar_labels:
+    pathogenic = any(
+        term in clinvar_labels
+        for term in ("pathogenic", "oncogenic", "likely pathogenic", "likely oncogenic")
+    )
+    benign = any(term in clinvar_labels for term in ("benign", "likely benign"))
+    if pathogenic and not benign:
+        return "Known ClinVar evidence includes pathogenic or oncogenic assertions."
+    if benign and not pathogenic:
         return "Known ClinVar evidence includes benign assertions."
+    if pathogenic and benign:
+        return "Conflicting ClinVar evidence — both pathogenic/oncogenic and benign assertions present."
     predictions = alpha.get("predictions") or []
     if predictions:
         return "AlphaMissense predictions are available and should be reviewed with ClinVar and frequency evidence."
@@ -288,11 +298,21 @@ def _unknown_variant_description(variant: dict[str, Any], features: dict[str, An
 
 
 def _behavior_summary(similar_variants: list[dict[str, Any]]) -> str:
-    known = [item for item in similar_variants if item.get("source") == "ClinVar"]
+    # Match any ClinVar-sourced variant regardless of exact source string variant.
+    known = [
+        item for item in similar_variants
+        if "clinvar" in (item.get("source") or "").lower()
+    ]
     if not known:
         return (
-            "No known similar variants with clinical assertions were available, so behavior or "
-            "expression should not be inferred beyond the measured features."
+            "No known similar variants with ClinVar clinical assertions were available, so "
+            "behavior or expression should not be inferred beyond the measured features."
         )
-    labels = ", ".join(item.get("clinical_significance") or "unknown" for item in known[:5])
-    return f"Closest known variant assertions include: {labels}. Interpret cautiously with the ranked evidence."
+    labels = ", ".join(
+        f"{item.get('name')} ({item.get('clinical_significance') or 'significance unknown'})"
+        for item in known[:5]
+    )
+    return (
+        f"Closest known ClinVar variants: {labels}. "
+        "Interpret cautiously alongside the ranked similarity evidence."
+    )

@@ -48,7 +48,7 @@ export function SideNav({ activePage }: SideNavProps) {
             <MaterialIcon name="science" />
           </div>
           <div>
-            <p className="system-name">SYS_NODE_04</p>
+            <p className="system-name">MADE_BY_JRDC</p>
             <p className="system-version">LAB_SYSTEM_V2</p>
           </div>
         </div>

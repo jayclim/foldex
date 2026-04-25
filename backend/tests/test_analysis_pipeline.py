@@ -1,7 +1,82 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app.annotator import _coding_hgvs_from_vep, _preferred_gnomad_frequency, _preferred_vep_frequency
 from app.main import app
+
+
+@pytest.mark.parametrize(
+    "mutation_text,expected",
+    [
+        (
+            "p.Arg175His",
+            {
+                "cdna_hgvs": None,
+                "protein_hgvs": "p.Arg175His",
+                "reference_aa": "R",
+                "alternate_aa": "H",
+                "protein_position": 175,
+            },
+        ),
+        (
+            "p.R175H",
+            {
+                "cdna_hgvs": None,
+                "protein_hgvs": "p.Arg175His",
+                "reference_aa": "R",
+                "alternate_aa": "H",
+                "protein_position": 175,
+            },
+        ),
+        (
+            "R175H",
+            {
+                "cdna_hgvs": None,
+                "protein_hgvs": "p.Arg175His",
+                "reference_aa": "R",
+                "alternate_aa": "H",
+                "protein_position": 175,
+            },
+        ),
+        (
+            "c.5096G>A",
+            {
+                "cdna_hgvs": "c.5096G>A",
+                "protein_hgvs": None,
+                "reference_aa": None,
+                "alternate_aa": None,
+                "protein_position": None,
+            },
+        ),
+        (
+            "c.5096G>A p.Arg1699Gln",
+            {
+                "cdna_hgvs": "c.5096G>A",
+                "protein_hgvs": "p.Arg1699Gln",
+                "reference_aa": "R",
+                "alternate_aa": "Q",
+                "protein_position": 1699,
+            },
+        ),
+        (
+            "p.R175*",
+            {
+                "protein_hgvs": "p.Arg175Ter",
+                "reference_aa": "R",
+                "alternate_aa": "*",
+                "protein_position": 175,
+            },
+        ),
+        (
+            "c.524del",
+            {"cdna_hgvs": "c.524del", "protein_hgvs": None},
+        ),
+    ],
+)
+def test_mutation_metadata_parses_common_forms(mutation_text, expected) -> None:
+    metadata = _mutation_metadata(mutation_text)
+    for key, value in expected.items():
+        assert metadata.get(key) == value, f"{key} for {mutation_text!r}"
 
 
 def test_analysis_pipeline_completes_with_live_apis_disabled(monkeypatch) -> None:

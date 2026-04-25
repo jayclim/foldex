@@ -551,51 +551,6 @@
   background: linear-gradient(145deg, rgba(2, 6, 23, 0.92), rgba(15, 23, 42, 0.58));
 }
 
-.mol3d-canvas {
-  position: absolute;
-  inset: 0;
-}
-
-.color-scheme-bar {
-  position: absolute;
-  z-index: 10;
-  top: 16px;
-  right: 16px;
-  display: flex;
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid rgba(0, 218, 243, 0.15);
-  border-radius: 6px;
-  background: rgba(11, 19, 38, 0.75);
-  backdrop-filter: blur(12px);
-}
-
-.color-scheme-btn {
-  padding: 4px 10px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  color: #94a3b8;
-  background: transparent;
-  font-family: var(--font-heading);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
-}
-
-.color-scheme-btn:hover {
-  color: var(--primary-fixed-dim);
-  background: rgba(0, 218, 243, 0.08);
-}
-
-.color-scheme-btn.active {
-  border-color: rgba(0, 218, 243, 0.35);
-  color: var(--primary-fixed-dim);
-  background: rgba(0, 218, 243, 0.12);
-}
-
 
 .viewer-status {
   position: absolute;

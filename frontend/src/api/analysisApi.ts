@@ -1,4 +1,8 @@
-const API_BASE = 'http://localhost:8000'
+const API_BASE =
+  (import.meta.env.VITE_API_URL as string | undefined) ||
+  (window.location.hostname.includes('vercel.app')
+    ? 'https://foldex.onrender.com'
+    : 'http://localhost:8000')
 
 export type JobStatus = 'queued' | 'running' | 'completed' | 'failed'
 

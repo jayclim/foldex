@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { use3DmolViewer, COLOR_SCHEME_META, type ColorScheme } from '../hooks/use3DmolViewer'
+import './Mol3DViewer.css'
 
 interface Mol3DViewerProps {
   pdbId?: string

@@ -116,7 +116,22 @@ async def annotate_variant(variant: dict[str, Any]) -> dict[str, Any]:
     gene = str(variant.get("gene") or "").strip().upper()
     mutation_text = str(variant.get("mutation") or "").strip()
     warnings = []
+
+    # Attempt to use AI to clean up the input if it looks like raw text
+    if gene and not mutation_text or len(gene + mutation_text) > 30:
+        ai_parsed = await _parse_variant_with_ai(gene + " " + mutation_text)
+        if ai_parsed.get("gene"):
+            gene = ai_parsed["gene"]
+            mutation_text = ai_parsed.get("mutation", mutation_text)
+
     variant_record = _build_variant_record(gene, mutation_text)
+
+    # Find the canonical transcript to make VEP/gnomAD/AlphaMissense calls much more reliable
+    transcript_id = await _fetch_ensembl_transcript(gene)
+    if transcript_id:
+        variant_record["ensembl_transcript"] = transcript_id
+    else:
+        warnings.append(f"Could not find a canonical Ensembl transcript for gene {gene}.")
 
     uniprot = await _fetch_uniprot(variant_record)
     warnings.extend(uniprot.pop("warnings", []))
@@ -141,14 +156,21 @@ async def annotate_variant(variant: dict[str, Any]) -> dict[str, Any]:
             "mutation": mutation,
         }
     )
-    features = await variant_features(unknown_structure)
-
     vep = await _fetch_vep(variant_record)
     vep_warnings = _enrich_variant_from_vep(variant_record, vep)
     warnings.extend(vep_warnings)
     clinvar = await _fetch_clinvar(variant_record)
     gnomad = await _fetch_gnomad(variant_record, vep)
     alpha_missense = _alpha_missense_from_vep(vep)
+
+    # Calculate features using both the 3D structure and the gathered genomic evidence
+    features = await variant_features(unknown_structure, {
+        "vep": vep,
+        "clinvar": clinvar,
+        "gnomad": gnomad,
+        "uniprot": uniprot,
+        "alpha_missense": alpha_missense
+    })
 
     for block in (vep, clinvar, gnomad):
         warnings.extend(block.get("warnings", []))
@@ -190,26 +212,41 @@ def _build_variant_record(gene: str, mutation_text: str) -> dict[str, Any]:
     }
 
 
+_ONE_LETTER_AAS = set("ACDEFGHIKLMNPQRSTVWY")
+_STOP_TOKENS = {"*", "X", "TER"}
+
+_CDNA_RE = re.compile(
+    r"\bc\.[0-9*+\-_]+(?:[ACGT]>[ACGT]|del[ACGT]*|dup[ACGT]*|ins[ACGT]+|delins[ACGT]+)",
+    re.IGNORECASE,
+)
+_PROTEIN_RE = re.compile(
+    r"(?:p\.)?(?P<ref>[A-Za-z]{3}|[A-Za-z])(?P<pos>\d+)(?P<alt>Ter|TER|[A-Za-z]{3}|[A-Za-z*X])(?![A-Za-z0-9])"
+)
+
+
 def _mutation_metadata(mutation_text: str) -> dict[str, Any]:
     metadata: dict[str, Any] = {"submitted": mutation_text}
-    cdna_match = re.search(r"\bc\.([0-9]+[ACGT]>[ACGT])\b", mutation_text, flags=re.IGNORECASE)
-    protein_match = re.search(
-        r"\bp\.([A-Z][a-z]{2})(\d+)([A-Z][a-z]{2}|Ter|\*)\b",
-        mutation_text,
-    )
+    if not mutation_text:
+        return metadata
 
+    cdna_match = _CDNA_RE.search(mutation_text)
     if cdna_match:
-        metadata["cdna_hgvs"] = f"c.{cdna_match.group(1)}"
+        metadata["cdna_hgvs"] = "c." + cdna_match.group(0)[2:]
+
+    protein_match = _PROTEIN_RE.search(mutation_text)
     if protein_match:
-        ref_three, position, alt_three = protein_match.groups()
-        metadata.update(
-            {
-                "protein_hgvs": f"p.{ref_three}{position}{alt_three}",
-                "reference_aa": AA_THREE_TO_ONE.get(ref_three),
-                "alternate_aa": AA_THREE_TO_ONE.get(alt_three),
-                "protein_position": int(position),
-            }
-        )
+        ref_aa = _normalize_aa(protein_match.group("ref"))
+        alt_aa = _normalize_aa(protein_match.group("alt"))
+        position = int(protein_match.group("pos"))
+        if ref_aa and alt_aa:
+            metadata.update(
+                {
+                    "protein_hgvs": f"p.{_canonical_aa_token(ref_aa)}{position}{_canonical_aa_token(alt_aa)}",
+                    "reference_aa": ref_aa,
+                    "alternate_aa": alt_aa,
+                    "protein_position": position,
+                }
+            )
     return metadata
 
 
@@ -488,7 +525,7 @@ async def _fetch_gnomad(variant_record: dict[str, Any], vep: dict[str, Any]) -> 
     if frequencies:
         frequency = _preferred_vep_frequency(frequencies)
         return {
-            "status": "from_vep_colocated_variants",
+            "status": "ok",
             "source": "Ensembl VEP colocated variants",
             "population_frequency": frequency.get("allele_frequency"),
             "population_frequency_source": frequency.get("source"),
@@ -513,6 +550,9 @@ def _population_frequencies_from_vep(vep: dict[str, Any]) -> list[dict[str, Any]
         "gnomad_af",
         "gnomade_af",
         "gnomadg_af",
+        "gnomad",
+        "gnomade",
+        "gnomadg",
         "af",
         "afr_af",
         "amr_af",
@@ -889,10 +929,17 @@ async def _get_text(url: str, **kwargs: Any) -> str:
 
 def _hgvs_query(variant_record: dict[str, Any]) -> str | None:
     gene = variant_record.get("gene")
+    transcript = variant_record.get("ensembl_transcript")
     mutation = variant_record.get("mutation") or {}
+    
+    # Prioritize Transcript ID for more reliable VEP/AlphaMissense results
+    target = transcript or gene
+    if not target:
+        return None
+
     for key in ("cdna_hgvs", "protein_hgvs"):
-        if gene and mutation.get(key):
-            return f"{gene}:{mutation[key]}"
+        if mutation.get(key):
+            return f"{target}:{mutation[key]}"
     return None
 
 

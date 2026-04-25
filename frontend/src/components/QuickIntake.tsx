@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { parseGeneMutationFromText, parseGeneMutationFromVcf } from '../utils/geneMutationParser'
+import { parseGeneMutationFromText, parseGeneMutationFromVcf, parseGeneMutationFromPdfBytes } from '../utils/geneMutationParser'
 import { Button } from './Button'
 import { MaterialIcon } from './MaterialIcon'
 
@@ -11,6 +11,7 @@ export function QuickIntake({ onSubmit }: QuickIntakeProps) {
   const [inputValue, setInputValue] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [isParsing, setIsParsing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function handleTextSubmit() {
@@ -34,16 +35,30 @@ export function QuickIntake({ onSubmit }: QuickIntakeProps) {
 
   async function handleFile(file: File) {
     setError(null)
-    if (file.name.endsWith('.vcf') || file.type === 'text/plain') {
-      const text = await file.text()
+    const lowerName = file.name.toLowerCase()
+
+    if (lowerName.endsWith('.pdf') || file.type === 'application/pdf') {
+      setIsParsing(true)
       try {
+        const arrayBuffer = await file.arrayBuffer()
+        const { gene, mutation } = await parseGeneMutationFromPdfBytes(arrayBuffer)
+        console.log('[QuickIntake] PDF parsed', { gene, mutation })
+        onSubmit(gene, mutation)
+      } catch {
+        setError('Could not extract gene/mutation from PDF. Ensure the report contains variant data.')
+      } finally {
+        setIsParsing(false)
+      }
+    } else if (lowerName.endsWith('.vcf') || file.type === 'text/plain') {
+      try {
+        const text = await file.text()
         const { gene, mutation } = parseGeneMutationFromVcf(text)
         onSubmit(gene, mutation)
       } catch {
         setError('Could not extract gene/mutation from VCF file.')
       }
     } else {
-      setError('Supported formats: .vcf files or paste sequence text below.')
+      setError('Supported formats: .pdf, .vcf files or paste sequence text below.')
     }
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
@@ -74,15 +89,16 @@ export function QuickIntake({ onSubmit }: QuickIntakeProps) {
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
+        disabled={isParsing}
       >
         <MaterialIcon name="genetics" />
-        <strong>Drop FASTQ / VCF files</strong>
-        <small>Max payload 2.4GB</small>
+        <strong>{isParsing ? 'Parsing PDF…' : 'Drop PDF / VCF files'}</strong>
+        <small>Genetic reports, VCF exports</small>
       </Button>
       <input
         ref={fileInputRef}
         type="file"
-        accept=".vcf,.txt"
+        accept=".vcf,.txt,.pdf"
         style={{ display: 'none' }}
         onChange={handleFileInput}
       />

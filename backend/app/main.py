@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
@@ -6,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.annotator import annotate_variant
 from app.jobs import Job, JobStatus, jobs
 from app.reporter import generate_report
-from app.schemas import AnalyzeRequest, AnalyzeResponse, JobResponse
+from app.schemas import AnalysisResult, AnalyzeRequest, AnalyzeResponse, JobResponse
 from app.similarity import find_similar_variants
 from app.structures import structures_for_report
 
@@ -18,7 +21,13 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "https://foldex-three.vercel.app"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "https://foldex-three.vercel.app",
+    ],
+    allow_origin_regex=r"https://.*\.(vercel\.app|onrender\.com)$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -64,13 +73,15 @@ async def run_analysis_job(job_id: str, gene: str, mutation: str) -> None:
             structures=structures,
         )
 
-        job.result = {
-            "variant": variant_record,
-            "annotations": annotations,
-            "similar_variants": similar_variants,
-            "structures": structures,
-            "report": report,
-        }
+        job.result = AnalysisResult.model_validate(
+            {
+                "variant": variant_record,
+                "annotations": annotations,
+                "similar_variants": similar_variants,
+                "structures": structures,
+                "report": report,
+            }
+        )
         job.status = JobStatus.completed
     except Exception as exc:  # noqa: BLE001 - expose errors during hackathon development.
         job.status = JobStatus.failed

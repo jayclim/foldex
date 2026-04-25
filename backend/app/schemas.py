@@ -110,9 +110,9 @@ class ReportUnknownVariant(BaseModel):
 
 
 class ReportClassificationSummary(BaseModel):
-    alpha_missense: Any | None = None
+    alpha_missense: dict[str, Any] | None = None
     clinvar: list[Any] | None = None
-    gnomad: Any | None = None
+    gnomad: dict[str, Any] | None = None
     overall_interpretation: str | None = None
 
 
@@ -134,10 +134,10 @@ class ReportData(BaseModel):
 
 
 class AnalysisResult(BaseModel):
-    variant: VariantRecord | None = None
+    variant: VariantRecord | dict[str, Any] | None = None
     annotations: dict[str, Any] | None = None
-    similar_variants: list[SimilarVariant] | None = None
-    structures: StructuresPayload | None = None
+    similar_variants: list[SimilarVariant] | list[dict[str, Any]] | None = None
+    structures: StructuresPayload | dict[str, Any] | None = None
     report: ReportData | None = None
 
 

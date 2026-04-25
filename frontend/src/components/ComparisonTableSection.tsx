@@ -1,3 +1,5 @@
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { AnalysisResult } from '../api/analysisApi'
 import { comparisonRows as mockRows } from '../utils/reportsData'
 
@@ -109,6 +111,12 @@ export function ComparisonTableSection({ result }: ComparisonTableSectionProps) 
   const altAa = result?.annotations?.features?.mutation?.alternate_aa ?? 'Variant'
   const pos = result?.annotations?.features?.mutation?.protein_position
 
+  const reportJson = result?.report?.json
+  const wildDesc = reportJson?.wild_type?.description
+  const variantDesc = reportJson?.unknown_variant?.description
+  const markdown = result?.report?.markdown
+  const hasNarrative = Boolean(wildDesc || variantDesc || markdown)
+
   return (
     <section className="glass-panel comparison-section">
       <header>
@@ -148,6 +156,31 @@ export function ComparisonTableSection({ result }: ComparisonTableSectionProps) 
           </tbody>
         </table>
       </div>
+
+      {hasNarrative && (
+        <div className="comparison-narrative">
+          {(wildDesc || variantDesc) && (
+            <div className="comparison-narrative-grid">
+              <article>
+                <h3><em className="wild-type-dot" /> Wild Type</h3>
+                <p>{wildDesc ?? '—'}</p>
+              </article>
+              <article>
+                <h3><em className="variant-dot" /> Variant</h3>
+                <p>{variantDesc ?? '—'}</p>
+              </article>
+            </div>
+          )}
+          {markdown && (
+            <details className="comparison-narrative-full" open>
+              <summary>Full report</summary>
+              <div className="markdown-body">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
+              </div>
+            </details>
+          )}
+        </div>
+      )}
     </section>
   )
 }
