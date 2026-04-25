@@ -313,6 +313,8 @@ Claude appears at three points in the pipeline. In each, it acts as a **reasoner
 - **English-language inputs only** for the current parser.
 
 ---
+<img width="3015" height="1585" alt="image" src="https://github.com/user-attachments/assets/c555a51e-628e-4f7f-88b1-092102ff58bc" />
+---
 
 ## Roadmap
 
