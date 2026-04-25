@@ -45,7 +45,7 @@ export function ReportStructurePanel({ result }: ReportStructurePanelProps) {
       </div>
 
       {(pdbData || wildPdb) ? (
-        <div className="report-mol-viewer" style={{ position: 'relative', minHeight: '280px', borderRadius: '8px', overflow: 'hidden' }}>
+        <div className="report-mol-viewer">
           <Mol3DViewer
             pdbData={showWild ? (wildPdb ?? undefined) : (pdbData ?? undefined)}
             defaultScheme="ss"

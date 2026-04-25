@@ -1,8 +1,11 @@
 import json
+import logging
 import os
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 async def generate_report(
@@ -87,9 +90,10 @@ async def _claude_report(evidence: dict[str, Any]) -> str | None:
     try:
         import anthropic
 
+        print(">>> Calling Claude API for report generation...", flush=True)
         client = anthropic.AsyncAnthropic(api_key=api_key)
         message = await client.messages.create(
-            model=os.getenv("FOLDEX_CLAUDE_MODEL", "claude-3-5-sonnet-latest"),
+            model=os.getenv("FOLDEX_CLAUDE_MODEL", "claude-sonnet-4-20250514"),
             max_tokens=1800,
             temperature=0,
             messages=[
@@ -102,13 +106,14 @@ async def _claude_report(evidence: dict[str, Any]) -> str | None:
                         "say it is missing. Include sections for classification, wild type, unknown "
                         "variant features, similar variants, likely behavior/expression based only on "
                         "similar known variants, 3D structures, and research-only disclaimer.\n\n"
-                        f"{json.dumps(evidence, indent=2)}"
+                        f"{json.dumps({k: v for k, v in evidence.items() if k != 'structures'}, indent=2)}"
                     ),
                 }
             ],
         )
         return "".join(block.text for block in message.content if hasattr(block, "text"))
-    except Exception:
+    except Exception as e:
+        print(f">>> Claude API failed: {e}", flush=True)
         return None
 
 
@@ -117,8 +122,11 @@ async def _groq_report(evidence: dict[str, Any]) -> str | None:
     if not api_key:
         return None
 
+    print(">>> Calling Groq API for report generation...", flush=True)
     url = os.getenv("FOLDEX_GROQ_URL", "https://api.groq.com/openai/v1/chat/completions")
     model = os.getenv("FOLDEX_GROQ_MODEL", "llama-3.3-70b-versatile")
+    # Remove structures from the payload to stay under Groq size limits
+    groq_evidence = {k: v for k, v in evidence.items() if k != "structures"}
     prompt = (
         "Generate a concise variant research report in markdown using only the structured "
         "evidence below. Do not invent symptoms, diagnoses, population frequencies, "
@@ -126,7 +134,7 @@ async def _groq_report(evidence: dict[str, Any]) -> str | None:
         "Include sections for classification, wild type, unknown variant features, similar "
         "variants, likely behavior/expression based only on similar known variants, 3D "
         "structures, and research-only disclaimer.\n\n"
-        f"{json.dumps(evidence, indent=2)}"
+        f"{json.dumps(groq_evidence, indent=2)}"
     )
     try:
         async with httpx.AsyncClient(timeout=120) as client:
@@ -148,7 +156,8 @@ async def _groq_report(evidence: dict[str, Any]) -> str | None:
             if not choices:
                 return None
             return choices[0].get("message", {}).get("content")
-    except Exception:
+    except Exception as e:
+        print(f">>> Groq API failed: {e}", flush=True)
         return None
 
 
