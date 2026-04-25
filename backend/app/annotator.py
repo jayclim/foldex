@@ -98,7 +98,12 @@ def _build_variant_record(gene: str, mutation_text: str) -> dict[str, Any]:
     mutation = _mutation_metadata(mutation_text)
     cdna_hgvs = mutation.get("cdna_hgvs")
     protein_hgvs = mutation.get("protein_hgvs")
-    display_name = " ".join(part for part in [gene, mutation_text] if part)
+    parts = []
+    if gene:
+        parts.append(gene)
+    if mutation_text and mutation_text.upper() != gene.upper():
+        parts.append(mutation_text)
+    display_name = " ".join(parts) if parts else ""
 
     return {
         "gene": gene,

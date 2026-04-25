@@ -28,7 +28,11 @@ export const COLOR_SCHEME_META: { id: ColorScheme; label: string; description: s
   { id: 'residue', label: 'Residue', description: 'Amino acid chemical properties' },
 ]
 
-export function use3DmolViewer(pdbId = '4HHB', colorScheme: ColorScheme = 'ss') {
+export function use3DmolViewer(
+  pdbId = '4HHB',
+  colorScheme: ColorScheme = 'ss',
+  pdbData?: string | null,
+) {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<$3DmolViewer | null>(null)
   const loadedRef = useRef(false)
@@ -52,13 +56,18 @@ export function use3DmolViewer(pdbId = '4HHB', colorScheme: ColorScheme = 'ss') 
 
       viewerRef.current = viewer
 
-      const response = await fetch(`https://files.rcsb.org/download/${pdbId}.pdb`)
-      if (cancelled) return
-      const pdbData = await response.text()
+      let data: string
+      if (pdbData) {
+        data = pdbData
+      } else {
+        const response = await fetch(`https://files.rcsb.org/download/${pdbId}.pdb`)
+        if (cancelled) return
+        data = await response.text()
+      }
       if (cancelled) return
 
       viewer.removeAllModels()
-      viewer.addModel(pdbData, 'pdb')
+      viewer.addModel(data, 'pdb')
       viewer.setStyle({}, STYLE_MAP[colorSchemeRef.current])
       viewer.zoomTo()
       viewer.render()
@@ -75,7 +84,7 @@ export function use3DmolViewer(pdbId = '4HHB', colorScheme: ColorScheme = 'ss') 
       containerRef.current?.querySelectorAll('canvas').forEach((c) => c.remove())
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pdbId])
+  }, [pdbId, pdbData])
 
   useEffect(() => {
     const viewer = viewerRef.current

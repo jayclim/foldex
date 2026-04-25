@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { use3DmolViewer, COLOR_SCHEME_META, type ColorScheme } from '../hooks/use3DmolViewer'
 
 interface Mol3DViewerProps {
-  pdbId: string
+  pdbId?: string
+  pdbData?: string | null
   defaultScheme?: ColorScheme
   label?: string
   className?: string
@@ -10,14 +11,15 @@ interface Mol3DViewerProps {
 }
 
 export function Mol3DViewer({
-  pdbId,
+  pdbId = '4HHB',
+  pdbData,
   defaultScheme = 'ss',
   label = '3D protein structure viewer',
   className,
   schemeBarClassName,
 }: Mol3DViewerProps) {
   const [activeScheme, setActiveScheme] = useState<ColorScheme>(defaultScheme)
-  const containerRef = use3DmolViewer(pdbId, activeScheme)
+  const containerRef = use3DmolViewer(pdbId, activeScheme, pdbData)
 
   return (
     <>

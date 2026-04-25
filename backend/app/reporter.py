@@ -18,7 +18,7 @@ async def generate_report(
     - Return markdown plus structured JSON for frontend rendering.
     """
     evidence = _structured_evidence(variant, annotations, similar_variants, structures)
-    ai_markdown = await _claude_report(evidence) or await _grok_report(evidence)
+    ai_markdown = await _claude_report(evidence) or await _groq_report(evidence)
     markdown = ai_markdown or _fallback_markdown(evidence)
 
     return {
@@ -122,13 +122,13 @@ async def _claude_report(evidence: dict[str, Any]) -> str | None:
         return None
 
 
-async def _grok_report(evidence: dict[str, Any]) -> str | None:
-    api_key = os.getenv("XAI_API_KEY")
+async def _groq_report(evidence: dict[str, Any]) -> str | None:
+    api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         return None
 
-    url = os.getenv("FOLDEX_GROK_URL", "https://api.x.ai/v1/chat/completions")
-    model = os.getenv("FOLDEX_GROK_MODEL", "grok-4-latest")
+    url = os.getenv("FOLDEX_GROQ_URL", "https://api.groq.com/openai/v1/chat/completions")
+    model = os.getenv("FOLDEX_GROQ_MODEL", "llama-3.3-70b-versatile")
     prompt = (
         "Generate a concise variant research report in markdown using only the structured "
         "evidence below. Do not invent symptoms, diagnoses, population frequencies, "

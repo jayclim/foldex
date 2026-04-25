@@ -1,20 +1,25 @@
 import { Mol3DViewer } from './Mol3DViewer'
 
-export function ProteinViewer() {
+type ProteinViewerProps = {
+  pdbData?: string | null
+  label?: string
+}
+
+export function ProteinViewer({ pdbData, label }: ProteinViewerProps) {
   return (
     <div className="protein-viewer">
-      <Mol3DViewer pdbId="4HHB" defaultScheme="ss" />
+      <Mol3DViewer pdbData={pdbData ?? null} pdbId={pdbData ? undefined : '4HHB'} defaultScheme="ss" />
 
       <div className="viewer-status">
-        <p>ALPHAFOLD PREDICTION V2.0</p>
+        <p>{label ?? 'ESMFOLD PREDICTION'}</p>
         <div>
-          <span>Confidence pLDDT: 92.4</span>
+          <span>{pdbData ? 'ESMFold Structure' : 'Demo: 4HHB'}</span>
           <div className="confidence-dots" aria-hidden="true">
             <span />
             <span />
             <span />
             <span />
-            <span className="inactive" />
+            {!pdbData && <span className="inactive" />}
           </div>
         </div>
       </div>

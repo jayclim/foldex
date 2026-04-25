@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { AnalysisPage } from './pages/AnalysisPage'
+// import { AnalysisPage } from './pages/AnalysisPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { ReportsPage } from './pages/ReportsPage'
 
@@ -16,9 +16,9 @@ function App() {
     return () => window.removeEventListener('popstate', handleRouteChange)
   }, [])
 
-  if (route === '/analysis') {
-    return <AnalysisPage />
-  }
+  // if (route === '/analysis') {
+  //   return <AnalysisPage />
+  // }
 
   if (route === '/reports') {
     return <ReportsPage />

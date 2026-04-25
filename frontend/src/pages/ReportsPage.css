@@ -106,12 +106,20 @@
 
 .significance-card strong {
   display: block;
-  color: var(--error);
+  color: var(--sig-color, var(--error));
   font-family: var(--font-heading);
   font-size: clamp(34px, 4vw, 48px);
   font-weight: 700;
   line-height: 1;
 }
+
+.significance-card strong.danger { color: var(--error); }
+.significance-card strong.success { color: var(--secondary-fixed); }
+.significance-card strong.neutral { color: var(--primary-fixed-dim); }
+
+.significance-card-header.danger { color: var(--error); }
+.significance-card-header.success { color: var(--secondary-fixed); }
+.significance-card-header.neutral { color: var(--primary-fixed-dim); }
 
 .significance-meter {
   display: flex;
@@ -132,13 +140,13 @@
 .significance-meter span::after {
   position: absolute;
   inset: 0 auto 0 0;
-  width: 94.2%;
+  width: var(--meter-fill, 94.2%);
   content: "";
-  background: var(--error);
+  background: var(--sig-color, var(--error));
 }
 
 .significance-meter em {
-  color: var(--error);
+  color: var(--sig-color, var(--error));
   font-size: 14px;
   font-style: normal;
   font-weight: 500;

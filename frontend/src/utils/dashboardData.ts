@@ -1,6 +1,5 @@
 export const navItems = [
-  { icon: 'dashboard', label: 'Dashboard', href: '/' },
-  { icon: 'biotech', label: 'Analysis', href: '/analysis' },
+  { icon: 'biotech', label: 'Analysis', href: '/' },
   { icon: 'analytics', label: 'Reports', href: '/reports' },
 ]
 
