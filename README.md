@@ -75,6 +75,7 @@ A user submits a single gene variant either as text (e.g. `BRCA1 c.5096G>A p.Arg
 3. **Predicts 3D structures** — wild-type from AlphaFold DB, mutant from ESMFold — and renders them in an interactive Mol\* viewer with the mutated residue highlighted.
 4. **Finds the 5–10 most biologically similar known variants**, ranked by gene/domain match, residue distance, amino-acid property change, and pathogenicity-score similarity.
 5. **Generates a final structured report** via Claude, separating established clinical evidence from computational prediction, and explicitly flagging weak or conflicting findings.
+6. **Adds a patient-friendly summary** beneath the full report — a short, plain-language explanation of what the variant is, what is known versus uncertain, and what the patient should discuss with their clinician. It carries the same non-diagnostic disclaimer and points back to the cited evidence above.
 
 ---
 
@@ -281,6 +282,7 @@ Claude appears at three points in the pipeline. In each, it acts as a **reasoner
 | **Parsing** | Reads free-text or extracted PDF content and proposes an HGVS-normalized variant | Output is rejected unless VariantValidator / Ensembl VEP confirms it resolves to a real transcript and position |
 | **Similarity ranking** | Reasons over a pre-filtered candidate list to explain why each near-neighbor variant is biologically relevant | Candidate set is computed deterministically from gene, domain, residue distance, and property change; Claude only ranks and explains within that set |
 | **Report writing** | Drafts the final structured report from the assembled evidence dossier | Prompt enforces strict separation of *established clinical evidence* vs. *computational prediction*; every claim must cite a source already present in the dossier |
+| **Patient summary** | Rewrites the finished report into a short plain-language explanation for the patient | Generated only from the already-grounded report — no new facts, no new sources; jargon is translated, uncertainty is preserved, and the non-diagnostic disclaimer is reiterated |
 
 ### Constraints encoded in prompts and code
 

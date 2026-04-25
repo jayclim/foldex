@@ -130,6 +130,7 @@ class ReportJson(BaseModel):
 
 class ReportData(BaseModel):
     markdown: str | None = None
+    patient_summary: str | None = None
     json: ReportJson | None = None
 
 

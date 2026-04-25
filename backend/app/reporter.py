@@ -25,8 +25,15 @@ async def generate_report(
     ai_markdown = await _claude_report(evidence) or await _groq_report(evidence)
     markdown = ai_markdown or _fallback_markdown(evidence, structures)
 
+    patient_summary = (
+        await _claude_patient_summary(markdown, evidence)
+        or await _groq_patient_summary(markdown, evidence)
+        or _fallback_patient_summary(evidence)
+    )
+
     return {
         "markdown": markdown,
+        "patient_summary": patient_summary,
         "json": {
             "status": "complete",
             "variant": evidence["variant"],
@@ -124,6 +131,132 @@ async def _claude_report(evidence: dict[str, Any]) -> str | None:
     except Exception as e:
         print(f">>> Claude API failed: {e}", flush=True)
         return None
+
+
+_PATIENT_SUMMARY_INSTRUCTIONS = (
+    "Rewrite the variant report below as a short plain-language explanation for the patient. "
+    "Use only facts already present in the report — do not introduce new findings, statistics, "
+    "citations, or recommendations. Audience is a non-scientist adult with no genetics background.\n\n"
+    "Requirements:\n"
+    "- 120-180 words, in markdown.\n"
+    "- Start with a one-sentence plain-language description of what the variant is.\n"
+    "- Use 3 short sections with these exact headings:\n"
+    "  **What we found**, **What this means**, **What to do next**.\n"
+    "- Translate jargon (e.g. 'missense', 'pathogenic', 'allele frequency'). No abbreviations "
+    "without an inline definition. No raw scores or p-values.\n"
+    "- Preserve uncertainty honestly: if the report says evidence is missing, conflicting, or "
+    "uncertain, say so plainly. Do not reassure beyond the evidence.\n"
+    "- Under 'What to do next', the only recommendation is to discuss the report with their "
+    "clinician or genetic counselor. Do not suggest treatments, lifestyle changes, or tests.\n"
+    "- End with this exact line on its own:\n"
+    "  *This summary is for research support only and is not medical advice. Please review it "
+    "with a qualified clinician or genetic counselor.*\n"
+)
+
+
+def _patient_summary_prompt(report_markdown: str, evidence: dict[str, Any]) -> str:
+    variant = evidence.get("variant") or {}
+    context = {
+        "display_name": variant.get("display_name"),
+        "gene": variant.get("gene"),
+        "overall_interpretation": (evidence.get("classification_summary") or {}).get(
+            "overall_interpretation"
+        ),
+    }
+    return (
+        f"{_PATIENT_SUMMARY_INSTRUCTIONS}\n"
+        f"Variant context (for grounding only, do not quote verbatim):\n"
+        f"{json.dumps(context, indent=2)}\n\n"
+        f"Full report markdown:\n---\n{report_markdown}\n---"
+    )
+
+
+async def _claude_patient_summary(
+    report_markdown: str, evidence: dict[str, Any]
+) -> str | None:
+    api_key = _env_value("ANTHROPIC_API_KEY")
+    if not api_key or not report_markdown:
+        return None
+    try:
+        import anthropic
+
+        print(">>> Calling Claude API for patient summary...", flush=True)
+        client = anthropic.AsyncAnthropic(api_key=api_key)
+        message = await client.messages.create(
+            model=os.getenv("FOLDEX_CLAUDE_MODEL", "claude-sonnet-4-20250514"),
+            max_tokens=600,
+            temperature=0,
+            messages=[
+                {
+                    "role": "user",
+                    "content": _patient_summary_prompt(report_markdown, evidence),
+                }
+            ],
+        )
+        text = "".join(block.text for block in message.content if hasattr(block, "text"))
+        return text.strip() or None
+    except Exception as e:
+        print(f">>> Claude patient summary failed: {e}", flush=True)
+        return None
+
+
+async def _groq_patient_summary(
+    report_markdown: str, evidence: dict[str, Any]
+) -> str | None:
+    api_key = _env_value("GROQ_API_KEY")
+    if not api_key or not report_markdown:
+        return None
+
+    url = _env_value("FOLDEX_GROQ_URL") or "https://api.groq.com/openai/v1/chat/completions"
+    model = _env_value("FOLDEX_GROQ_MODEL") or "llama-3.3-70b-versatile"
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.post(
+                url,
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={
+                    "model": model,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": _patient_summary_prompt(report_markdown, evidence),
+                        }
+                    ],
+                    "temperature": 0,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+            choices = data.get("choices") or []
+            if not choices:
+                return None
+            text = choices[0].get("message", {}).get("content") or ""
+            return text.strip() or None
+    except Exception as e:
+        print(f">>> Groq patient summary failed: {e}", flush=True)
+        return None
+
+
+def _fallback_patient_summary(evidence: dict[str, Any]) -> str:
+    variant = evidence.get("variant") or {}
+    summary = evidence.get("classification_summary") or {}
+    name = variant.get("display_name") or variant.get("gene") or "this variant"
+    interpretation = summary.get("overall_interpretation") or (
+        "The available evidence is limited, so the effect of this change is uncertain."
+    )
+    return (
+        "**What we found**\n\n"
+        f"Your test identified a change in your DNA called {name}. A 'variant' simply means a "
+        "spelling difference in a gene compared with the typical reference.\n\n"
+        "**What this means**\n\n"
+        f"{interpretation} In plain terms, scientists do not yet have enough information to say "
+        "with confidence whether this change affects your health.\n\n"
+        "**What to do next**\n\n"
+        "Please share this report with your clinician or a genetic counselor. They can put it in "
+        "the context of your personal and family history and help you decide on next steps.\n\n"
+        "*This summary is for research support only and is not medical advice. Please review it "
+        "with a qualified clinician or genetic counselor.*"
+    )
 
 
 async def _groq_report(evidence: dict[str, Any]) -> str | None:

@@ -1,16 +1,16 @@
-import type React from 'react'
 import type { AnalysisResult } from '../api/analysisApi'
 import { Button } from './Button'
 import { MaterialIcon } from './MaterialIcon'
+import { generatePdfReport } from '../utils/pdfReport'
 
-function extractClinicalSignificance(result: AnalysisResult): { sig: string; confidence: number | null; tone: string } {
+function extractClinicalSignificance(result: AnalysisResult): { sig: string; confidence: string | null; tone: string } {
   const clinvar = result.report?.json?.classification_summary?.clinvar?.[0]
   const alphaMissense = result.annotations?.alpha_missense?.predictions?.[0]
 
   if (clinvar?.clinical_significance) {
     const sig = clinvar.clinical_significance
-    const confidence = alphaMissense ? Math.round(alphaMissense.score * 100) : null
     const tone = /pathogenic/i.test(sig) ? 'danger' : /benign/i.test(sig) ? 'success' : 'neutral'
+    const confidence = /conflicting|uncertain/i.test(sig) ? 'Uncertain' : 'Confident'
     return { sig: sig.toUpperCase(), confidence, tone }
   }
 
@@ -18,7 +18,7 @@ function extractClinicalSignificance(result: AnalysisResult): { sig: string; con
     const sig = alphaMissense.prediction.replace('likely_', 'Likely ').replace('_', ' ')
     return {
       sig: sig.toUpperCase(),
-      confidence: Math.round(alphaMissense.score * 100),
+      confidence: alphaMissense.prediction === 'ambiguous' ? 'Uncertain' : 'Confident',
       tone: alphaMissense.prediction === 'likely_pathogenic' ? 'danger'
         : alphaMissense.prediction === 'likely_benign' ? 'success' : 'neutral',
     }
@@ -78,17 +78,19 @@ export function ReportsHeader({ result, completedAt }: ReportsHeaderProps) {
         </div>
         <div>
           <strong className={tone}>{sig}</strong>
-          {confidence != null && (
-            <div className="significance-meter">
-              <span style={{ '--meter-fill': `${confidence}%` } as React.CSSProperties} />
-              <em className={tone}>{confidence}%</em>
+          {confidence && (
+            <div className="significance-confidence">
+              <em className={tone}>{confidence}</em>
             </div>
           )}
         </div>
         <p>Based on ClinVar assertions and AlphaMissense structural analysis.</p>
       </div>
 
-      <Button className="reports-download reports-download-top">
+      <Button
+        className="reports-download reports-download-top"
+        onClick={() => generatePdfReport(result, completedAt)}
+      >
         <MaterialIcon name="download" />
         Download PDF Report
       </Button>

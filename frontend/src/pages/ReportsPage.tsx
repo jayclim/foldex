@@ -34,7 +34,7 @@ export function ReportsPage() {
 
         <SimilarVariantsSection variants={result?.structures?.similar_variants} />
         <ComparisonTableSection result={result} />
-        <ReportsFooter />
+        <ReportsFooter result={result} completedAt={completedAt} />
       </div>
     </AppLayout>
   )

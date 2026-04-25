@@ -115,7 +115,8 @@ export function ComparisonTableSection({ result }: ComparisonTableSectionProps) 
   const wildDesc = reportJson?.wild_type?.description
   const variantDesc = reportJson?.unknown_variant?.description
   const markdown = result?.report?.markdown
-  const hasNarrative = Boolean(wildDesc || variantDesc || markdown)
+  const patientSummary = result?.report?.patient_summary
+  const hasNarrative = Boolean(wildDesc || variantDesc || markdown || patientSummary)
 
   return (
     <section className="glass-panel comparison-section">
@@ -178,6 +179,17 @@ export function ComparisonTableSection({ result }: ComparisonTableSectionProps) 
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
               </div>
             </details>
+          )}
+          {patientSummary && (
+            <section className="patient-summary" aria-label="Plain-language summary for patients">
+              <header className="patient-summary-header">
+                <h3>For the patient</h3>
+                <p>A short, plain-language explanation of the report above.</p>
+              </header>
+              <div className="markdown-body patient-summary-body">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{patientSummary}</ReactMarkdown>
+              </div>
+            </section>
           )}
         </div>
       )}

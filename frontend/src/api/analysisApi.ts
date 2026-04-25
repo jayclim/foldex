@@ -110,6 +110,7 @@ export type ReportJson = {
 
 export type ReportData = {
   markdown?: string | null
+  patient_summary?: string | null
   json?: ReportJson | null
 }
 
