@@ -77,6 +77,8 @@ A user submits a single gene variant either as text (e.g. `BRCA1 c.5096G>A p.Arg
 5. **Generates a final structured report** via Claude, separating established clinical evidence from computational prediction, and explicitly flagging weak or conflicting findings.
 
 ---
+<img width="3020" height="1578" alt="image" src="https://github.com/user-attachments/assets/3f55319e-9e0f-4bc5-a20e-e33299e5b573" />
+---
 
 ## Architecture
 
