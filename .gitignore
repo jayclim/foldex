@@ -17,3 +17,6 @@ node_modules/
 # Editors / tools
 .codex
 .vercel
+
+# TypeScript build info
+*.tsbuildinfo
