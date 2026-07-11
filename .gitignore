@@ -1,12 +1,19 @@
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.ruff_cache/
-.venv/
-venv/
-.env
 .DS_Store
-backend/.env
+.env
+.env.local
+.env.*.local
 
+# Next.js
+/.next/
+/out/
+next-env.d.ts.bak
+
+# Node / npm
+node_modules/
+
+# Test / coverage
+/coverage/
+
+# Editors / tools
 .codex
 .vercel
