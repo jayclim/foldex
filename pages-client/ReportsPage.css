@@ -108,9 +108,10 @@
   display: block;
   color: var(--sig-color, var(--error));
   font-family: var(--font-heading);
-  font-size: clamp(34px, 4vw, 48px);
+  font-size: clamp(24px, 2.4vw, 34px);
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
 }
 
 .significance-card strong.danger { color: var(--error); }
@@ -179,10 +180,16 @@
   cursor: pointer;
 }
 
+.reports-title-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
 .reports-download-top {
-  position: absolute;
-  top: 32px;
-  right: 32px;
+  margin-left: auto;
 }
 
 .reports-bento {

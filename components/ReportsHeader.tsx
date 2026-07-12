@@ -65,9 +65,18 @@ export function ReportsHeader({ result, completedAt }: ReportsHeaderProps) {
   return (
     <header className="reports-header">
       <div className="reports-title">
-        <div className="reports-meta">
-          <span>Variant: {displayName}</span>
-          {computedAt && <em>Last Computed: {computedAt}</em>}
+        <div className="reports-title-top">
+          <div className="reports-meta">
+            <span>Variant: {displayName}</span>
+            {computedAt && <em>Last Computed: {computedAt}</em>}
+          </div>
+          <Button
+            className="reports-download reports-download-top"
+            onClick={() => generatePdfReport(result, completedAt)}
+          >
+            <MaterialIcon name="download" />
+            Download PDF Report
+          </Button>
         </div>
         <h1>{gene}{protein ? ` — ${protein}` : ' Variant Analysis'}</h1>
         <p>{description}</p>
@@ -88,14 +97,6 @@ export function ReportsHeader({ result, completedAt }: ReportsHeaderProps) {
         </div>
         <p>Based on ClinVar assertions and AlphaMissense structural analysis.</p>
       </div>
-
-      <Button
-        className="reports-download reports-download-top"
-        onClick={() => generatePdfReport(result, completedAt)}
-      >
-        <MaterialIcon name="download" />
-        Download PDF Report
-      </Button>
     </header>
   )
 }
