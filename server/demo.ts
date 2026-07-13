@@ -179,6 +179,7 @@ export function demoJob(jobId: string, gene: string, mutationText: string): Job 
   const mutation = mutationFromText(mutationText)
   const displayName = [gene, mutationText].filter(Boolean).join(' ')
   const profile = geneProfile(gene, mutation)
+  const mutFeat = mutationFeatures(mutation, profile.length)
   const evidenceNote = profile.known
     ? 'Values below were captured from the live pipeline (UniProt, AlphaMissense, ClinVar, gnomAD) and are shown without live API calls.'
     : 'This gene is not in the curated demo set, so protein-level values are illustrative examples rather than live evidence.'
@@ -245,7 +246,7 @@ export function demoJob(jobId: string, gene: string, mutationText: string): Job 
         average_hydropathy: profile.average_hydropathy,
         class_composition: profile.class_composition,
       },
-      mutation: mutationFeatures(mutation, profile.length),
+      mutation: mutFeat,
       structure: { model_available: false, atom_count: null, residue_count: null, chains: [], radius_of_gyration_angstrom: null },
       warnings: ['Demo mode uses baked-in evidence so the deployed resume demo works without paid databases or live scientific APIs.'],
     },
@@ -265,25 +266,67 @@ export function demoJob(jobId: string, gene: string, mutationText: string): Job 
     similar_variants: [{ variant: similar[0], structure: null }],
   }
   const freqText = profile.gnomad.population_frequency.toExponential(2)
+  const mwKda = (profile.molecular_weight_da / 1000).toFixed(1)
+  const refProps = mutFeat.reference_properties as { name: string; hydropathy: number; mass: number; class: string } | null
+  const altProps = mutFeat.alternate_properties as { name: string; hydropathy: number; mass: number; class: string } | null
+  const fmtDelta = (n: number | null) => (n == null ? '—' : n >= 0 ? `+${n}` : `${n}`)
+  const domainsText = profile.domains.length
+    ? profile.domains.map((d) => `${d.description} (${d.start}–${d.end})`).join(', ')
+    : 'No annotated domains in the demo record'
+  const positionText = mutation.protein_position
+    ? `residue ${mutation.protein_position} of ${profile.length} (${Math.round((mutation.protein_position / profile.length) * 100)}% from the N-terminus)`
+    : 'unknown'
+  const behaviorText = profile.known
+    ? `The closest known assertion for this position is ${profile.clinvar.clinical_significance} (${profile.clinvar.review_status}). Interpret alongside the ranked evidence above — FoldEx reports known evidence and does not infer new phenotypes.`
+    : 'No curated similar-variant assertions are available for this gene in the demo, so behavior should not be inferred beyond the measured amino-acid features.'
+  const similarReasons = (similar[0].similarity_reasons ?? []).join('; ')
+  const overallInterpretation = profile.known
+    ? `${profile.clinvar.clinical_significance} per ClinVar (${profile.clinvar.review_status}); AlphaMissense ${profile.alpha_missense.score}. Shown for demonstration — confirm any real result with a qualified reviewer.`
+    : 'Illustrative demo evidence for a non-curated gene; not for clinical use.'
+
   const markdown = `# Variant Research Report
 
-## What FoldEx is showing
-FoldEx turns a gene variant into a reviewer-friendly evidence packet: parsed mutation, population frequency, known clinical assertions, structural features, similar variants, and a plain-language summary.
+## Variant
+- Input: ${displayName}
+- Parsed substitution: ${mutation.protein_hgvs ?? (mutationText || '—')}
+- Gene: ${gene}
+- Protein: ${profile.protein_name}${profile.accession ? ` (UniProt ${profile.accession})` : ''}
 
-## Evidence for ${displayName}
-- Clinical classification: ${profile.clinvar.clinical_significance} (${profile.clinvar.review_status})
+## Classification & Evidence
+- ClinVar: ${profile.clinvar.clinical_significance} — ${profile.clinvar.review_status}
 - AlphaMissense: ${profile.alpha_missense.score} (${profile.alpha_missense.prediction.replace('_', ' ')})
-- Population frequency: ${freqText} — ${profile.gnomad.source}
-- Structural note: live ESMFold is skipped for the public resume demo
+- Population frequency: ${freqText} (${profile.gnomad.source})
+- Overall interpretation: ${overallInterpretation}
 
+## Wild-Type Protein
+- Length: ${profile.length} aa
+- Molecular weight: ${mwKda} kDa
+- Average hydropathy: ${profile.average_hydropathy}
+- Function: ${profile.functionText}
+- Domains: ${domainsText}
+
+## Variant Features
+- Position: ${positionText}
+- Amino-acid change: ${refProps ? `${refProps.name} (${refProps.class})` : mutation.reference_aa ?? '?'} → ${altProps ? `${altProps.name} (${altProps.class})` : mutation.alternate_aa ?? '?'}
+- Amino-acid class change: ${mutFeat.class_change ? 'yes' : 'no'}
+- Hydropathy (Kyte–Doolittle): ${refProps?.hydropathy ?? '—'} → ${altProps?.hydropathy ?? '—'} (Δ ${fmtDelta(mutFeat.hydropathy_delta as number | null)})
+- Residue mass: ${refProps?.mass ?? '—'} → ${altProps?.mass ?? '—'} Da (Δ ${fmtDelta(mutFeat.mass_delta_da as number | null)} Da)
+
+## Similar Known Variants
+- ${similar[0].name}: similarity ${similar[0].similarity_score}${similarReasons ? ` (${similarReasons})` : ''}. ${similar[0].description}
+
+## Likely Behavior / Expression
+${behaviorText}
+
+## 3D Structure
+Live ESMFold folding is skipped in the public demo, so no per-request 3D model is generated here. The live pipeline folds the mutant sequence and renders it with 3Dmol.js.
+
+## About This Demo
 ${evidenceNote}
 
 Research support only. This is not medical advice, diagnosis, or treatment guidance.`
 
   const wildDescription = `${profile.protein_name}. ${profile.functionText}`
-  const overallInterpretation = profile.known
-    ? `${profile.clinvar.clinical_significance} per ClinVar (${profile.clinvar.review_status}); AlphaMissense ${profile.alpha_missense.score}. Shown for demonstration — confirm any real result with a qualified reviewer.`
-    : 'Illustrative demo evidence for a non-curated gene; not for clinical use.'
 
   return {
     job_id: jobId,
