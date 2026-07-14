@@ -2,7 +2,7 @@
 
 FoldEx is a Next.js demo that turns a genetic variant into an evidence packet for human review. It parses a gene mutation, organizes population and clinical evidence, compares similar known variants, shows structure context, and produces a research-only report with a plain-language patient summary.
 
-Winner, Cornell Claude Builder Club Social Impact Hackathon, Spring 2026 Biology & Physical Health track.
+Finalist, Cornell Claude Builder Club Social Impact Hackathon, Spring 2026 Biology & Physical Health track.
 
 > FoldEx is not a diagnostic device. It is a research-support prototype. Outputs must be reviewed by a qualified clinician, genetic counselor, or geneticist.
 
